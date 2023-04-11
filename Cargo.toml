@@ -1,0 +1,72 @@
+[package]
+name = "stm_sys_board"
+version = "0.6.0"
+resolver = "2"
+authors = [
+	"Robert Jördens <rj@quartiq.de>",
+	"Ryan Summers <ryan.summers@vertigo-designs.com>",
+]
+description = "Firmware for the Sinara Stabilizer board (stm32h743, eth, poe, 2 adc, 2 dac)"
+categories = ["embedded", "no-std", "hardware-support", "science"]
+license = "MIT OR Apache-2.0"
+keywords = ["ethernet", "stm32h7", "adc", "dac", "physics"]
+repository = "https://github.com/quartiq/stabilizer"
+readme = "README.md"
+documentation = "https://docs.rs/stabilizer/"
+edition = "2021"
+exclude = [
+	".gitignore",
+	"doc/",
+	"doc/*"
+]
+
+[badges]
+maintenance = { status = "experimental" }
+
+[package.metadata.docs.rs]
+features = []
+default-target = "thumbv7em-none-eabihf"
+
+[dependencies]
+cortex-m = { version = "0.7" }
+cortex-m-rt = { version = "0.7", features = ["device"] }
+log = { version = "0.4", features = ["max_level_trace", "release_max_level_info"] }
+rtt-target = { version = "0.3", features = ["cortex-m"] }
+serde = { version = "1.0", features = ["derive"], default-features = false }
+heapless = { version = "0.7.10", features = ["serde"] }
+cortex-m-rtic = "1.0"
+embedded-hal = "0.2.7"
+nb = "1.0.0"
+asm-delay = "0.9.0"
+num_enum = { version = "0.5.7", default-features = false }
+paste = "1"
+idsp = "0.7.1"
+miniconf = "0.5"
+smoltcp-nal = { version = "0.2", features = ["shared-stack"] }
+serde-json-core = "0.4"
+mcp23017 = "1.0"
+mutex-trait = "0.2"
+minimq = "0.5.3"
+fugit = "0.3"
+rtt-logger = "0.2"
+systick-monotonic = "1.0"
+mono-clock = "0.1"
+
+[dependencies.stm32h7xx-hal]
+features = ["stm32h743v", "rt", "unproven", "ethernet", "xspi"]
+version = "0.11.0"
+
+[features]
+nightly = ["cortex-m/inline-asm"]
+pounder_v1_1 = [ ]
+
+[profile.dev]
+codegen-units = 1
+incremental = false
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+debug = true
+lto = true
+codegen-units = 1
