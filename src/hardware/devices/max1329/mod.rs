@@ -140,6 +140,14 @@ impl Max1329 {
         adc::AdcCode(((data[0] as u16) << 4) | ((data[1] as u16) >> 4))
     }
 
+    pub fn read_adc_gt_alarm_register(slot: u8, ecp5: &mut ECP5) -> u16 {
+        let mut data: [u8; 2] = [0; 2];
+        let address = [READ | ADC_GT_AL];
+        ecp5.read_spi(slot, &address, &mut data);
+        log::info!("Odebrano: {} {}", data[0], data[1]);
+        ((data[0] as u16) << 8) | data[1] as u16
+    }
+
 
 
     pub fn set_adc_gt_alarm_register(slot: u8,
@@ -249,11 +257,11 @@ impl Max1329 {
     }
 
     pub fn read_clock_control_register(slot : u8, ecp5: &mut ECP5) -> u8 {
-        let mut data: [u8; 2] = [0, 0];
+        let mut data: [u8; 1] = [0];
 
         log::info!("to write: {}", CLOCK_CONTROL | READ);
         ecp5.read_spi(slot, &[CLOCK_CONTROL | READ], &mut data);
-        data[1]
+        data[0]
     }
 
     pub fn set_cpvm_control_register(slot : u8, ecp5: &mut ECP5, register_value : u8){
@@ -266,10 +274,21 @@ impl Max1329 {
                                        register_value: u32){
         let mut data: [u8; 4] = [0; 4];
         data[0] = INTERRUPT_MASK | WRITE;
-        data[1] = ((register_value & 0x0F00) >> 16) as u8;
-        data[2] = ((register_value & 0x00F0) >> 8) as u8;
-        data[3] = (register_value & 0x000F) as u8;
+        data[1] = ((register_value & 0xFF0000) >> 16) as u8;
+        data[2] = ((register_value & 0xFF00) >> 8) as u8;
+        data[3] = (register_value & 0x00FF) as u8;
+
+        log::info!("WRITE SPI Przygotowane do wysyłki: {} {} {} {}", data[0], data[1], data[2], data[3]);
         ecp5.write_spi(slot, &data);
+    }
+
+    pub fn read_interrrupt_mask_register(slot: u8,
+                                         ecp5: &mut ECP5,
+    ) -> [u8; 3] {
+        let mut data: [u8; 3] = [0; 3];
+        let address = [INTERRUPT_MASK | READ];
+        ecp5.read_spi(slot, &address, &mut data);
+        data
     }
 
     pub fn read_status_register(slot : u8,

@@ -93,7 +93,7 @@ mod app {
 
         let mut i2c = stm_sys_board.therm_i2c;
         let mut i2c_bp = stm_sys_board.cpcis_i2c;
-        let mut device0 = Device0Type::new(5);
+        let device0 = Device0Type::new(5);
         let mut servmod = stm_sys_board.servmod;
         let mut array : [u8; 2] = [0x00, 0x00];
 
@@ -149,23 +149,45 @@ mod app {
         Max1329::setup_ecp5_spi_master(1, &mut ecp5);
 
 
-        ecp5.check_registers();
+        //ecp5.check_registers();
 
         //delay.delay_ms(100000 as u32);
         log::info!("Próba odczytu SPI z MAX1329");
         let x = Max1329::read_clock_control_register(1, &mut ecp5);
-        //delay.delay_ms(100000 as u32);
+        delay.delay_ms(100000 as u32);
         log::info!("Clock control REG: {} - should be {}", x, 0b0110_0001);
         core::assert_eq!(x, 0b01100001);
+
+        let x = Max1329::read_adc_gt_alarm_register(1, &mut ecp5);
+        log::info!("MAIN GT ALARM {}", x);
+        core::assert_eq!(x, 4095);
+
+        log::info!("MAIN jESZCZE RAZ ODCZYT CLOCK CONTROL");
+        let x = Max1329::read_clock_control_register(1, &mut ecp5);
+        delay.delay_ms(100000 as u32);
+        log::info!("Clock control REG: {} - should be {}", x, 0b0110_0001);
+        core::assert_eq!(x, 0b01100001);
+
+
+        log::info!("MAIN ZAPIS DO INTERRUPT REGISTER");
+        ecp5.check_registers();
+        Max1329::set_interrupt_mask_register(1, &mut ecp5, 0xAABBCC);
+        delay.delay_ms(100000 as u32);
+        log::info!("MAIN ODCZYT Z INTERRUPT REGISTER");
+        // delay.delay_ms(100000 as u32);
+        let x = Max1329::read_interrrupt_mask_register(1, &mut ecp5);
+        delay.delay_ms(100000 as u32);
+        log::info!("main INT mask register {} {} {}", x[0], x[1], x[2]);
+        //core::assert_eq!(x, 0b01100001);
 
 
         /*
             Check QSPI to ECP5 connection
         */
 
-        if device0.init(&mut ecp5){
-            telemetry0::spawn().unwrap();
-        }
+        // if device0.init(&mut ecp5){
+        //     telemetry0::spawn().unwrap();
+        // }
 
         let shared = Shared {
             network,
