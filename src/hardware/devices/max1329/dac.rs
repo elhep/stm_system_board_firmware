@@ -14,12 +14,20 @@ pub enum OpAmp{
 
 #[repr(u8)]
 pub enum RefConf{
-    Ext0_5      = 0b010,
-    Ext0_8192   = 0b100,
-    Ext1_0      = 0b110,
-    Int1_25     = 0b011,
-    Int2_048    = 0b101,
-    Int2_5      = 0b111,
+    ExtBuffOff = 0b000, // drive REFADC directly with an external reference
+    Ext0_5     = 0b010,
+    Ext0_8192  = 0b100,
+    Ext1_0     = 0b110,
+    IntHiZ     = 0b001,
+    Int1_25    = 0b011,
+    Int2_048   = 0b101,
+    Int2_5     = 0b111,
+    // Ext0_5      = 0b010,
+    // Ext0_8192   = 0b100,
+    // Ext1_0      = 0b110,
+    // Int1_25     = 0b011,
+    // Int2_048    = 0b101,
+    // Int2_5      = 0b111,
 }
 
 pub enum FifoAEnable{

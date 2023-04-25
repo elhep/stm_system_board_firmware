@@ -107,8 +107,15 @@ impl Max1329 {
                            aref: adc::RefConf) {
         let data: u8;
         data = ((auto as u8) << 5) | ((apd as u8) << 3) | (aref as u8);
-        let data = [ADC_CONTROL, data];
+        let data = [ADC_CONTROL | WRITE, data];
         ecp5.write_spi(slot, &data);
+    }
+
+    pub fn read_adc_control_register(slot: u8,
+                           ecp5: &mut ECP5) -> u8 {
+        let mut data: [u8;1] = [0];
+        ecp5.read_spi(slot, &[ADC_CONTROL | READ], &mut data);
+        data[0]
     }
 
 // Direct commnand CAN NOT change MSEL
@@ -119,6 +126,13 @@ impl Max1329 {
                         bip: adc::Bip){
         let data: u8 = (1 << 7) | ( ((mux as u8) & 0xF)  << 3) | ((gain as u8) << 1) | (bip as u8);
         ecp5.write_spi(slot, &[data]);
+    }
+
+    pub fn read_adc_setup_register(slot: u8,
+                           ecp5: &mut ECP5) -> u8 {
+        let mut data: [u8;1] = [0];
+        ecp5.read_spi(slot, &[ADC_SETUP | READ], &mut data);
+        data[0]
     }
 
     pub fn set_adc_setup_register(slot: u8,
@@ -181,7 +195,9 @@ impl Max1329 {
                            dref: dac::RefConf) {
         let data: u8;
         data = ((dapd as u8) << 6) | ((dbpd as u8) << 4) | ((oa1e as u8) << 3) | (dref as u8);
+
         let data = [DAC_CONTROL, data];
+        log::info!("DAC Control {}", data[1]);
         ecp5.write_spi(slot, &data);
     }
 
@@ -206,6 +222,22 @@ impl Max1329 {
                           value: u16){
         let data: [u8; 2] = [(0b0100 << 4) | ((value >> 8) as u8), (value & 0xFF) as u8];
         ecp5.write_spi(slot, &data);
+    }
+
+    pub fn read_daca_value(slot: u8,
+                           ecp5: &mut ECP5) -> u16 {
+        let mut data = [0b0110_0000, 0x00];
+        ecp5.write_spi(slot, &data);
+        ecp5.read_from_ecp5(ecp5::OFFSET_TO_SLOT * slot + ecp5::OFFSET_TO_SPI + ecp5::SPI::DATA, &mut data);
+        (((data[0] as u16) << 8)) | (data[1] as u16)
+    }
+
+    pub fn read_dacb_value(slot: u8,
+                           ecp5: &mut ECP5) -> u16 {
+        let mut data = [0b0111_0000, 0x00];
+        ecp5.write_spi(slot, &data);
+        ecp5.read_from_ecp5(ecp5::OFFSET_TO_SLOT * slot + ecp5::OFFSET_TO_SPI + ecp5::SPI::DATA, &mut data);
+        (((data[0] as u16) << 8)) | (data[1] as u16)
     }
 
     pub fn set_dacb_value(slot: u8,
@@ -269,6 +301,11 @@ impl Max1329 {
         ecp5.write_spi(slot, &data);
     }
 
+    pub fn reset_device(slot : u8, ecp5: &mut ECP5){
+        let data : [u8; 2] = [RESET | WRITE, 0x00];
+        ecp5.write_spi(slot, &data);
+    }
+
     pub fn set_interrupt_mask_register(slot: u8,
                                        ecp5: &mut ECP5,
                                        register_value: u32){
@@ -278,7 +315,7 @@ impl Max1329 {
         data[2] = ((register_value & 0xFF00) >> 8) as u8;
         data[3] = (register_value & 0x00FF) as u8;
 
-        log::info!("WRITE SPI Przygotowane do wysyłki: {} {} {} {}", data[0], data[1], data[2], data[3]);
+        //log::info!("WRITE SPI Przygotowane do wysyłki: {} {} {} {}", data[0], data[1], data[2], data[3]);
         ecp5.write_spi(slot, &data);
     }
 
@@ -302,7 +339,7 @@ impl Max1329 {
         (data[2] as u32)
     }
 
-    pub fn read_apio_setupr_register(slot: u8,
+    pub fn read_apio_setup_register(slot: u8,
                                      ecp5: &mut ECP5) -> u8 {
         let mut data : [u8; 1] = [0; 1];
         let address = [APIO_SETUP | READ];

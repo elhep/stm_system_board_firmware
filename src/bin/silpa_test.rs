@@ -45,7 +45,10 @@ use embedded_hal::blocking::delay::DelayMs;
 #[rtic::app(device = stm_sys_board::hardware::hal::stm32, peripherals = true, dispatchers=[DCMI, JPEG, LTDC, SDMMC])]
 mod app {
     use embedded_hal::digital::v2::OutputPin;
+    //use heapless::binary_heap::Max;
+    use stm_sys_board::hardware::devices::max1329;
     use stm_sys_board::hardware::devices::max1329::Max1329;
+    //use stm_sys_board::hardware::ecp5;
     use super::*;
 
     #[monotonic(binds = SysTick, default = true, priority = 2)]
@@ -149,8 +152,7 @@ mod app {
         Max1329::setup_ecp5_spi_master(1, &mut ecp5);
 
 
-        //ecp5.check_registers();
-
+        Max1329::reset_device(1, &mut ecp5);
         //delay.delay_ms(100000 as u32);
         log::info!("Próba odczytu SPI z MAX1329");
         let x = Max1329::read_clock_control_register(1, &mut ecp5);
@@ -179,6 +181,77 @@ mod app {
         delay.delay_ms(100000 as u32);
         log::info!("main INT mask register {} {} {}", x[0], x[1], x[2]);
         //core::assert_eq!(x, 0b01100001);
+
+        let x = Max1329::read_status_register(1, &mut ecp5);
+        log::info!("Status register {}", x);
+        delay.delay_ms(100 as u32);
+         let x = Max1329::read_status_register(1, &mut ecp5);
+        log::info!("Status register drugi odczyt: {}", x);
+        delay.delay_ms(100 as u32);
+        log::info!("Ustawienie PUMPa");
+        Max1329::set_cpvm_control_register(1, &mut ecp5, 0b0100_1001);
+        log::info!("SET_DAC_CONTROL");
+        delay.delay_ms(100 as u32);
+        Max1329::set_dac_control(1, &mut ecp5,
+                                  max1329::dac::PowerDownConf::InOut,
+                                  max1329::dac::PowerDownConf::InOut,
+                                  max1329::dac::OpAmp::Disable,
+                                  max1329::dac::RefConf::Int2_5);
+        Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::PowerDown, max1329::adc::RefConf::Int2_5);
+        log::info!("SET_DACA_VALUE");
+        Max1329::set_daca_value(1, &mut ecp5, 0b0000_0110_0000_0000);
+        Max1329::set_dacb_value(1, &mut ecp5, 0b0000_1000_0000_0000);
+
+        delay.delay_ms(100 as u32);
+        log::info!("STATUS READ:");
+        let x = Max1329::read_status_register(1, &mut ecp5);
+        log::info!("Status register {}", x);
+
+
+        log::info!("DACA data READ");
+        delay.delay_ms(100 as u32);
+        let x = Max1329::read_daca_value(1, &mut ecp5);
+        log::info!("DAC A value {}", x);
+
+        log::info!("DACB data READ");
+        delay.delay_ms(100 as u32);
+        let x = Max1329::read_dacb_value(1, &mut ecp5);
+        log::info!("DAC B value {}", x);
+
+        //    -------------------------:::::::  ADC TESTS  :::::::-------------------------
+
+        let x = Max1329::read_status_register(1, &mut ecp5);
+        log::info!("Status przed ADC {}", x);
+
+        delay.delay_ms(100 as u32);
+
+        Max1329::set_interrupt_mask_register(1, &mut ecp5, 0b1110_1111_1111_1111_1111_1111); // unmask ADC done
+        Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, max1329::adc::RefConf::Int2_5);
+        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+
+
+        while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
+            log::info!("W8 for ADC");
+        }
+
+        log::info!("Status po ADC {}", x);
+        let x = Max1329::read_adc_data_register(1, &mut ecp5);
+
+        log::info!("ADC value for DVDD {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
+
+        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
+            log::info!("W8 for ADC");
+        }
+        let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        log::info!("ADC value for AVDD {}", x.0);    // Avdd / 4 (4 V / 4 = 1 V)
+
+        log::info!("ADC Control {}", Max1329::read_adc_control_register(1, &mut ecp5));
+        log::info!("ADC Setup {}", Max1329::read_adc_setup_register(1, &mut ecp5));
+
+        log::info!("HW_REV {}", Max1329::read_apio_setup_register(1, &mut ecp5) & 0x7);
+
 
 
         /*
