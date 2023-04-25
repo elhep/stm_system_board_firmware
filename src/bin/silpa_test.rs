@@ -117,7 +117,8 @@ mod app {
         hardware::eeprom::test_eeprom(&mut i2c, 0b1010_000).unwrap();
 
         log::info!("TEST SILPA SLOT 5: eeprom");
-        servmod.5.set_high().unwrap();
+        servmod.4.set_low().unwrap();
+        
         match hardware::lm75a::read_temp(&mut i2c_bp, 0b1001_000){
             Ok(temp) => log::info!("Temp 1: {}", temp),
             Err(_e) => panic!("I2C 1st LM75 on Sys_Board error!"),
@@ -156,7 +157,7 @@ mod app {
         //delay.delay_ms(100000 as u32);
         log::info!("Próba odczytu SPI z MAX1329");
         let x = Max1329::read_clock_control_register(1, &mut ecp5);
-        delay.delay_ms(100000 as u32);
+        //delay.delay_ms(100000 as u32);
         log::info!("Clock control REG: {} - should be {}", x, 0b0110_0001);
         core::assert_eq!(x, 0b01100001);
 
@@ -166,7 +167,7 @@ mod app {
 
         log::info!("MAIN jESZCZE RAZ ODCZYT CLOCK CONTROL");
         let x = Max1329::read_clock_control_register(1, &mut ecp5);
-        delay.delay_ms(100000 as u32);
+        //delay.delay_ms(100000 as u32);
         log::info!("Clock control REG: {} - should be {}", x, 0b0110_0001);
         core::assert_eq!(x, 0b01100001);
 
@@ -174,24 +175,26 @@ mod app {
         log::info!("MAIN ZAPIS DO INTERRUPT REGISTER");
         ecp5.check_registers();
         Max1329::set_interrupt_mask_register(1, &mut ecp5, 0xAABBCC);
-        delay.delay_ms(100000 as u32);
+        //delay.delay_ms(100000 as u32);
         log::info!("MAIN ODCZYT Z INTERRUPT REGISTER");
         // delay.delay_ms(100000 as u32);
         let x = Max1329::read_interrrupt_mask_register(1, &mut ecp5);
-        delay.delay_ms(100000 as u32);
+        //delay.delay_ms(100000 as u32);
         log::info!("main INT mask register {} {} {}", x[0], x[1], x[2]);
-        //core::assert_eq!(x, 0b01100001);
+        core::assert_eq!(x[2], 0xCC);
+        core::assert_eq!(x[1], 0xBB);
+        core::assert_eq!(x[0], 0xAA);
 
         let x = Max1329::read_status_register(1, &mut ecp5);
         log::info!("Status register {}", x);
-        delay.delay_ms(100 as u32);
+        //delay.delay_ms(100 as u32);
          let x = Max1329::read_status_register(1, &mut ecp5);
         log::info!("Status register drugi odczyt: {}", x);
-        delay.delay_ms(100 as u32);
+        //delay.delay_ms(100 as u32);
         log::info!("Ustawienie PUMPa");
         Max1329::set_cpvm_control_register(1, &mut ecp5, 0b0100_1001);
         log::info!("SET_DAC_CONTROL");
-        delay.delay_ms(100 as u32);
+        //delay.delay_ms(100 as u32);
         Max1329::set_dac_control(1, &mut ecp5,
                                   max1329::dac::PowerDownConf::InOut,
                                   max1329::dac::PowerDownConf::InOut,
@@ -202,21 +205,23 @@ mod app {
         Max1329::set_daca_value(1, &mut ecp5, 0b0000_0110_0000_0000);
         Max1329::set_dacb_value(1, &mut ecp5, 0b0000_1000_0000_0000);
 
-        delay.delay_ms(100 as u32);
+        //delay.delay_ms(100 as u32);
         log::info!("STATUS READ:");
         let x = Max1329::read_status_register(1, &mut ecp5);
         log::info!("Status register {}", x);
 
 
         log::info!("DACA data READ");
-        delay.delay_ms(100 as u32);
+        //delay.delay_ms(100 as u32);
         let x = Max1329::read_daca_value(1, &mut ecp5);
         log::info!("DAC A value {}", x);
+        core::assert_eq!(x, 0b0000_0110_0000_0000);
 
         log::info!("DACB data READ");
-        delay.delay_ms(100 as u32);
+        //delay.delay_ms(100 as u32);
         let x = Max1329::read_dacb_value(1, &mut ecp5);
         log::info!("DAC B value {}", x);
+        core::assert_eq!(x, 0b0000_1000_0000_0000);
 
         //    -------------------------:::::::  ADC TESTS  :::::::-------------------------
 
@@ -252,6 +257,12 @@ mod app {
 
         log::info!("HW_REV {}", Max1329::read_apio_setup_register(1, &mut ecp5) & 0x7);
 
+        Max1329::set_dpio_control_register(1, &mut ecp5, 0xFFFF);
+        Max1329::set_dpio_setup_register(1, &mut ecp5, 0x00);
+
+        log::info!("DPIO SETUP {}", Max1329::read_dpio_setup_register(1, &mut ecp5));
+        let x = Max1329::read_dpio_control_register(1, &mut ecp5);
+        log::info!("DPIO CONTROL {} {}", x[0], x[1]);
 
 
         /*

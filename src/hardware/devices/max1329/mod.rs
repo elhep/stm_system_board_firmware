@@ -228,6 +228,10 @@ impl Max1329 {
                            ecp5: &mut ECP5) -> u16 {
         let mut data = [0b0110_0000, 0x00];
         ecp5.write_spi(slot, &data);
+        let address = ecp5::OFFSET_TO_SLOT * slot + ecp5::OFFSET_TO_SPI + ecp5::SPI::IDLE;
+        while data[1] != 1 {
+            ecp5.read_from_ecp5(address, &mut data).unwrap();
+        }
         ecp5.read_from_ecp5(ecp5::OFFSET_TO_SLOT * slot + ecp5::OFFSET_TO_SPI + ecp5::SPI::DATA, &mut data);
         (((data[0] as u16) << 8)) | (data[1] as u16)
     }
@@ -236,6 +240,10 @@ impl Max1329 {
                            ecp5: &mut ECP5) -> u16 {
         let mut data = [0b0111_0000, 0x00];
         ecp5.write_spi(slot, &data);
+        let address = ecp5::OFFSET_TO_SLOT * slot + ecp5::OFFSET_TO_SPI + ecp5::SPI::IDLE;
+        while data[1] != 1 {
+            ecp5.read_from_ecp5(address, &mut data).unwrap();
+        }
         ecp5.read_from_ecp5(ecp5::OFFSET_TO_SLOT * slot + ecp5::OFFSET_TO_SPI + ecp5::SPI::DATA, &mut data);
         (((data[0] as u16) << 8)) | (data[1] as u16)
     }
@@ -291,7 +299,7 @@ impl Max1329 {
     pub fn read_clock_control_register(slot : u8, ecp5: &mut ECP5) -> u8 {
         let mut data: [u8; 1] = [0];
 
-        log::info!("to write: {}", CLOCK_CONTROL | READ);
+        //log::info!("to write: {}", CLOCK_CONTROL | READ);
         ecp5.read_spi(slot, &[CLOCK_CONTROL | READ], &mut data);
         data[0]
     }
@@ -358,8 +366,16 @@ impl Max1329 {
     pub fn set_dpio_control_register(slot : u8,
                                      ecp5: &mut ECP5,
                                      register_value: u16){
-        let data :[u8; 3] = [DPIO_CONTROL | WRITE, (register_value >> 8) as u8, (register_value & 0xF) as u8];
+        let data :[u8; 3] = [DPIO_CONTROL | WRITE, (register_value >> 8) as u8, (register_value & 0xFF) as u8];
         ecp5.write_spi(slot, &data);
+    }
+
+    pub fn read_dpio_control_register(slot : u8,
+                                     ecp5: &mut ECP5) -> [u8; 2]{
+        let mut data :[u8; 2] = [0; 2];
+        let address = [DPIO_CONTROL | READ];
+        ecp5.read_spi(slot, &address, &mut data);
+        data
     }
 
     pub fn set_dpio_setup_register(slot : u8,
@@ -367,5 +383,13 @@ impl Max1329 {
                                      register_value: u8){
         let data :[u8; 2] = [DPIO_SETUP | WRITE, register_value];
         ecp5.write_spi(slot, &data);
+    }
+
+    pub fn read_dpio_setup_register(slot : u8,
+                                     ecp5: &mut ECP5) -> u8 {
+        let mut data :[u8; 1] = [0];
+        let address = [DPIO_SETUP| READ];
+        ecp5.read_spi(slot, &address, &mut data);
+        data[0]
     }
 }

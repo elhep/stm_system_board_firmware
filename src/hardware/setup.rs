@@ -423,14 +423,14 @@ pub fn setup(
         gpiof.pf14.into_push_pull_output(),
         gpiof.pf15.into_push_pull_output(),
     );
-    servmod.0.set_low().unwrap();
-    servmod.1.set_low().unwrap();
-    servmod.2.set_low().unwrap();
-    servmod.3.set_low().unwrap();
-    servmod.4.set_low().unwrap();
-    servmod.5.set_low().unwrap();
-    servmod.6.set_low().unwrap();
-    servmod.7.set_low().unwrap();
+    servmod.0.set_high().unwrap();
+    servmod.1.set_high().unwrap();
+    servmod.2.set_high().unwrap();
+    servmod.3.set_high().unwrap();
+    servmod.4.set_high().unwrap();
+    servmod.5.set_high().unwrap();
+    servmod.6.set_high().unwrap();
+    servmod.7.set_high().unwrap();
 
    // let mac_addr = smoltcp::wire::EthernetAddress([0x00, 0x0b, 0x00, 0x00, 0x00, 0x00]);
    let mac_addr = smoltcp::wire::EthernetAddress(eeprom::read_eui48(
