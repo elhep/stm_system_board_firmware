@@ -118,7 +118,7 @@ mod app {
 
         log::info!("TEST SILPA SLOT 5: eeprom");
         servmod.4.set_low().unwrap();
-        
+
         match hardware::lm75a::read_temp(&mut i2c_bp, 0b1001_000){
             Ok(temp) => log::info!("Temp 1: {}", temp),
             Err(_e) => panic!("I2C 1st LM75 on Sys_Board error!"),
@@ -192,36 +192,59 @@ mod app {
         log::info!("Status register drugi odczyt: {}", x);
         //delay.delay_ms(100 as u32);
         log::info!("Ustawienie PUMPa");
-        Max1329::set_cpvm_control_register(1, &mut ecp5, 0b0100_1001);
-        log::info!("SET_DAC_CONTROL");
-        //delay.delay_ms(100 as u32);
-        Max1329::set_dac_control(1, &mut ecp5,
-                                  max1329::dac::PowerDownConf::InOut,
-                                  max1329::dac::PowerDownConf::InOut,
-                                  max1329::dac::OpAmp::Disable,
-                                  max1329::dac::RefConf::Int2_5);
-        Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::PowerDown, max1329::adc::RefConf::Int2_5);
-        log::info!("SET_DACA_VALUE");
-        Max1329::set_daca_value(1, &mut ecp5, 0b0000_0110_0000_0000);
-        Max1329::set_dacb_value(1, &mut ecp5, 0b0000_1000_0000_0000);
-
-        //delay.delay_ms(100 as u32);
-        log::info!("STATUS READ:");
-        let x = Max1329::read_status_register(1, &mut ecp5);
-        log::info!("Status register {}", x);
 
 
-        log::info!("DACA data READ");
-        //delay.delay_ms(100 as u32);
-        let x = Max1329::read_daca_value(1, &mut ecp5);
-        log::info!("DAC A value {}", x);
-        core::assert_eq!(x, 0b0000_0110_0000_0000);
+        struct Variables {
+            pub cpvm_reg: u8,
+            pub reference: max1329::adc::RefConf,
+        }
+        #[cfg(feature = "ext_ref_burned")]
+        let variables = Variables{
+            cpvm_reg: 0b0100_1001,
+            reference: max1329::adc::RefConf::Int2_5,
+        };
 
-        log::info!("DACB data READ");
-        //delay.delay_ms(100 as u32);
-        let x = Max1329::read_dacb_value(1, &mut ecp5);
-        log::info!("DAC B value {}", x);
-        core::assert_eq!(x, 0b0000_1000_0000_0000);
+        #[cfg(not(feature = "ext_ref_burned"))]
+        let variables = Variables{
+            cpvm_reg: 0b0100_0001,
+            reference: max1329::adc::RefConf::ExtBuffOff,
+        };
+
+        Max1329::set_cpvm_control_register(1, &mut ecp5, variables.cpvm_reg);
+
+        #[allow(dead_code)]
+        fn test_dac(ecp: &mut ECP5){
+            log::info!("SET_DAC_CONTROL");
+            Max1329::set_dac_control(1,  ecp,
+                          max1329::dac::PowerDownConf::InOut,
+                          max1329::dac::PowerDownConf::InOut,
+                          max1329::dac::OpAmp::Disable,
+                          max1329::dac::RefConf::Int2_5);
+            log::info!("SET_DACA_VALUE");
+            Max1329::set_daca_value(1, ecp, 0b0000_0110_0000_0000);
+            Max1329::set_dacb_value(1, ecp, 0b0000_1000_0000_0000);
+
+                    //delay.delay_ms(100 as u32);
+            log::info!("STATUS READ:");
+            let x = Max1329::read_status_register(1, ecp);
+            log::info!("Status register {}", x);
+
+
+            log::info!("DACA data READ");
+            //delay.delay_ms(100 as u32);
+            let x = Max1329::read_daca_value(1, ecp);
+            log::info!("DAC A value {}", x);
+            core::assert_eq!(x, 0b0000_0110_0000_0000);
+
+            log::info!("DACB data READ");
+            //delay.delay_ms(100 as u32);
+            let x = Max1329::read_dacb_value(1, ecp);
+            log::info!("DAC B value {}", x);
+            core::assert_eq!(x, 0b0000_1000_0000_0000);
+        }
+
+        #[cfg(feature = "ext_ref_burned")]
+        test_dac(&mut ecp5);
 
         //    -------------------------:::::::  ADC TESTS  :::::::-------------------------
 
@@ -231,7 +254,7 @@ mod app {
         delay.delay_ms(100 as u32);
 
         Max1329::set_interrupt_mask_register(1, &mut ecp5, 0b1110_1111_1111_1111_1111_1111); // unmask ADC done
-        Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, max1329::adc::RefConf::Int2_5);
+        Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, variables.reference);
         Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
 
