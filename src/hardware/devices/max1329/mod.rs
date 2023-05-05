@@ -85,15 +85,21 @@ impl Max1329 {
         }
     }
 
+    pub fn setup_spi_cs_pol(slot: u8, ecp: &mut ECP5, pol: u8){
+        let offset = slot * ecp5::OFFSET_TO_SLOT + ecp5::OFFSET_TO_SPI;
+        ecp.write_to_ecp5(offset + ecp5::SPI::CS_POL, &mut [0x00, pol]).unwrap();
+
+    }
+
     // Configure SPI in ECP5
-    pub fn setup_ecp5_spi_master(slot: u8, ecp: &mut ECP5){
+    pub fn setup_ecp5_spi_master(slot: u8, ecp: &mut ECP5, clk_pol: u8){ //TODO delete clk_pol as soon as HVSUP is fixed
         let offset = slot * ecp5::OFFSET_TO_SLOT + ecp5::OFFSET_TO_SPI;
         ecp.write_to_ecp5(offset + ecp5::SPI::LENGTH, &mut [0x00, 0x0F]).unwrap();
         ecp.write_to_ecp5(offset + ecp5::SPI::CS, &mut [0x00, 0x01]).unwrap();
         ecp.write_to_ecp5(offset + ecp5::SPI::CS_POL, &mut [0x00, 0x00]).unwrap();
-        ecp.write_to_ecp5(offset + ecp5::SPI::DIV, &mut [0x00, 0x10]).unwrap();
+        ecp.write_to_ecp5(offset + ecp5::SPI::DIV, &mut [0x00, 0xF0]).unwrap();
         ecp.write_to_ecp5(offset + ecp5::SPI::OFFLINE, &mut [0x00, 0x00]).unwrap();
-        ecp.write_to_ecp5(offset + ecp5::SPI::CLK_POL, &mut [0x00, 0x00]).unwrap();
+        ecp.write_to_ecp5(offset + ecp5::SPI::CLK_POL, &mut [0x00, clk_pol]).unwrap();
         ecp.write_to_ecp5(offset + ecp5::SPI::CLK_PHA, &mut [0x00, 0x00]).unwrap();
         ecp.write_to_ecp5(offset + ecp5::SPI::LSB_FST, &mut [0x00, 0x00]).unwrap();
         ecp.write_to_ecp5(offset + ecp5::SPI::HALF_DUP, &mut [0x00, 0x00]).unwrap();

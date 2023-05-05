@@ -117,16 +117,16 @@ mod app {
         hardware::eeprom::test_eeprom(&mut i2c, 0b1010_000).unwrap();
 
         log::info!("TEST SILPA SLOT 5: eeprom");
-        servmod.4.set_low().unwrap();
+        servmod.4.set_high().unwrap();
 
         match hardware::lm75a::read_temp(&mut i2c_bp, 0b1001_000){
             Ok(temp) => log::info!("Temp 1: {}", temp),
-            Err(_e) => panic!("I2C 1st LM75 on Sipla error!"),
+            Err(_e) => panic!("I2C 1st LM75 on HVSUP error!"),
         };
-        match hardware::lm75a::read_temp(&mut i2c_bp, 0b1001_001){
-            Ok(temp) => log::info!("Temp 2: {}", temp),
-            Err(_e) => panic!("I2C 2nd LM75 on Sipla error!"),
-        };
+        // match hardware::lm75a::read_temp(&mut i2c_bp, 0b1001_001){   //
+        //     Ok(temp) => log::info!("Temp 2: {}", temp),
+        //     Err(_e) => panic!("I2C 2nd LM75 on HVSUP error!"),
+        // };
         hardware::eeprom::test_eeprom(&mut i2c_bp, 0b1010_000).unwrap();
 
         log::info!("Silpa I2C test done");
@@ -150,7 +150,7 @@ mod app {
         log::info!("Odebrane stany wejściowe: {} {}", array[0], array[1]);
 
         log::info!("Konfiguracja SPI dla slotu 2 (realnie 5)");
-        Max1329::setup_ecp5_spi_master(1, &mut ecp5, 0);
+        Max1329::setup_ecp5_spi_master(1, &mut ecp5, 1);
 
 
         Max1329::reset_device(1, &mut ecp5);
@@ -173,7 +173,7 @@ mod app {
 
 
         log::info!("MAIN ZAPIS DO INTERRUPT REGISTER");
-        ecp5.check_registers();
+        //ecp5.check_registers();
         Max1329::set_interrupt_mask_register(1, &mut ecp5, 0xAABBCC);
         //delay.delay_ms(100000 as u32);
         log::info!("MAIN ODCZYT Z INTERRUPT REGISTER");
@@ -198,15 +198,9 @@ mod app {
             pub cpvm_reg: u8,
             pub reference: max1329::adc::RefConf,
         }
-        #[cfg(feature = "ext_ref_burned")]
-        let variables = Variables{
-            cpvm_reg: 0b0100_1001,
-            reference: max1329::adc::RefConf::Int2_5,
-        };
 
-        #[cfg(not(feature = "ext_ref_burned"))]
-        let variables = Variables{
-            cpvm_reg: 0b0100_0001,
+        let variables = Variables{ // External ref not burned but still have to setup internal punp
+            cpvm_reg: 0b0100_1001,
             reference: max1329::adc::RefConf::ExtBuffOff,
         };
 
@@ -287,6 +281,50 @@ mod app {
         let x = Max1329::read_dpio_control_register(1, &mut ecp5);
         log::info!("DPIO CONTROL {} {}", x[0], x[1]);
 
+
+        log::info!("SECOND MAX: 1st step: APIO MODE");
+        Max1329::set_apio_control_register(1, &mut ecp5, 0b1111_1111);
+
+        let x = Max1329::read_interrrupt_mask_register(1, &mut ecp5);
+        //delay.delay_ms(100000 as u32);
+        log::info!("MAX 0: main INT mask register {} {} {}", x[0], x[1], x[2]);
+        Max1329::setup_spi_cs_pol(1, &mut ecp5, 1);
+        let x = Max1329::read_interrrupt_mask_register(1, &mut ecp5);
+        //delay.delay_ms(100000 as u32);
+        log::info!("MAX 1: main INT mask register {} {} {}", x[0], x[1], x[2]);
+        log::info!("Próba odczytu SPI z MAX1329");
+        let x = Max1329::read_clock_control_register(1, &mut ecp5);
+        //delay.delay_ms(100000 as u32);
+        log::info!("Clock control REG: {} - should be {}", x, 0b0110_0001);
+        core::assert_eq!(x, 0b01100001);
+
+        let variables = Variables{ // External ref not burned but still have to setup internal punp
+            cpvm_reg: 0b0100_1001,
+            reference: max1329::adc::RefConf::ExtBuffOff,
+        };
+        Max1329::set_cpvm_control_register(1, &mut ecp5, variables.cpvm_reg);
+
+        Max1329::set_interrupt_mask_register(1, &mut ecp5, 0b1110_1111_1111_1111_1111_1111); // unmask ADC done
+        Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, variables.reference);
+        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+
+
+        while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
+            log::info!("W8 for ADC");
+        }
+
+        log::info!("Status po ADC {}", x);
+        let x = Max1329::read_adc_data_register(1, &mut ecp5);
+
+        log::info!("ADC value for DVDD {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
+
+        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
+            log::info!("W8 for ADC");
+        }
+        let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        log::info!("ADC value for AVDD {}", x.0);    // Avdd / 4 (4 V / 4 = 1 V)
 
         /*
             Check QSPI to ECP5 connection
