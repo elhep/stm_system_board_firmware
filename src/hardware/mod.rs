@@ -54,7 +54,7 @@ pub type ExtIntPins = (
     ExtIntPin7,
 );
 
-pub type ExtIntPin0 = gpioe::PE13<InputPullUp>;
+pub type ExtIntPin0 = gpioc::PC3<InputPullUp>;
 pub type ExtIntPin1 = gpiod::PD1<InputPullUp>;
 pub type ExtIntPin2 = gpiog::PG4<InputPullUp>;
 pub type ExtIntPin3 = gpiog::PG5<InputPullUp>;

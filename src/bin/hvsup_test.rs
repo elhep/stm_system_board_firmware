@@ -48,6 +48,7 @@ mod app {
     //use heapless::binary_heap::Max;
     use stm_sys_board::hardware::devices::max1329;
     use stm_sys_board::hardware::devices::max1329::Max1329;
+    //use stm_sys_board::hardware::ecp5::OFFSET_TO_SLOT;
     //use stm_sys_board::hardware::ecp5;
     use super::*;
 
@@ -200,7 +201,7 @@ mod app {
         }
 
         let variables = Variables{ // External ref not burned but still have to setup internal punp
-            cpvm_reg: 0b0100_1001,
+            cpvm_reg: 0b1100_1001,
             reference: max1329::adc::RefConf::ExtBuffOff,
         };
 
@@ -240,7 +241,7 @@ mod app {
         #[cfg(feature = "ext_ref_burned")]
         test_dac(&mut ecp5);
 
-        //    -------------------------:::::::  ADC TESTS  :::::::-------------------------
+        //    -------------------------:::::::  ADC TESTS MAX 1  :::::::-------------------------
 
         let x = Max1329::read_status_register(1, &mut ecp5);
         log::info!("Status przed ADC {}", x);
@@ -281,6 +282,7 @@ mod app {
         let x = Max1329::read_dpio_control_register(1, &mut ecp5);
         log::info!("DPIO CONTROL {} {}", x[0], x[1]);
 
+        //    -------------------------:::::::  ADC TESTS MAX 2  :::::::-------------------------
 
         log::info!("SECOND MAX: 1st step: APIO MODE");
         Max1329::set_apio_control_register(1, &mut ecp5, 0b1111_1111);
@@ -299,7 +301,7 @@ mod app {
         core::assert_eq!(x, 0b01100001);
 
         let variables = Variables{ // External ref not burned but still have to setup internal punp
-            cpvm_reg: 0b0100_1001,
+            cpvm_reg: 0b1100_1001,
             reference: max1329::adc::RefConf::ExtBuffOff,
         };
         Max1329::set_cpvm_control_register(1, &mut ecp5, variables.cpvm_reg);
@@ -318,14 +320,65 @@ mod app {
         let x = Max1329::read_adc_data_register(1, &mut ecp5);
 
         log::info!("ADC value for DVDD {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
-
+        // TESTOWANIE INTERRUPTOW
+        //ecp5.write_outputs(1, 0b1100_0101);
+        let mut array = [0, 0];
+        ecp5.read_inputs(1, &mut array); //        ecp5.read_from_ecp5(1 * OFFSET_TO_SLOT + SLOT::INPUT, &mut array).unwrap();
+        log::info!("INPUTS: {} {}", array[0], array[1]);
         Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        let mut array = [0, 0];
+        ecp5.read_inputs(1, &mut array);
+        log::info!("INPUTS: {} {}", array[0], array[1]);
+        log::info!("Status register {}", Max1329::read_status_register(1, &mut ecp5));
+        let mut array = [0, 0];
+        ecp5.read_inputs(1, &mut array);
+        log::info!("INPUTS: {} {}", array[0], array[1]);
         while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
             log::info!("W8 for ADC");
         }
         let x = Max1329::read_adc_data_register(1, &mut ecp5);
         log::info!("ADC value for AVDD {}", x.0);    // Avdd / 4 (4 V / 4 = 1 V)
 
+        let mut array = [0, 0];
+        ecp5.read_oe(1, &mut array); //
+        log::info!("OES: {} {}", array[0], array[1]);
+        ecp5.write_oe(1, &[0, 0b0001_0000]);  // driving PSU_EN to 1
+        ecp5.write_outputs(1, &[0, 0b0001_0000]);
+        ecp5.read_inputs(1, &mut array);
+        log::info!("INPUTS: {} {}", array[0], array[1]);
+                ecp5.read_inputs(1, &mut array);
+        log::info!("INPUTS: {} {}", array[0], array[1]);
+
+        log::info!("Status register {}", Max1329::read_status_register(1, &mut ecp5));
+        Max1329::setup_spi_cs_pol(1, &mut ecp5, 0);
+        log::info!("Status register {}", Max1329::read_status_register(1, &mut ecp5));
+        ecp5.read_inputs(1, &mut array);
+        log::info!("INPUTS: {} {}", array[0], array[1]);
+
+        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+
+                ecp5.read_inputs(1, &mut array);
+        log::info!("INPUTS: {} {}", array[0], array[1]);
+        delay.delay_ms(1000 as u32);
+                        ecp5.read_inputs(1, &mut array);
+        log::info!("INPUTS: {} {}", array[0], array[1]);
+                        ecp5.read_inputs(1, &mut array);
+        log::info!("INPUTS: {} {}", array[0], array[1]);
+
+        log::info!("Status register {}", Max1329::read_status_register(1, &mut ecp5));
+                        ecp5.read_inputs(1, &mut array);
+        log::info!("INPUTS: {} {}", array[0], array[1]);
+        delay.delay_ms(1000 as u32);
+                        ecp5.read_inputs(1, &mut array);
+        log::info!("INPUTS: {} {}", array[0], array[1]);
+                delay.delay_ms(1000 as u32);
+                        ecp5.read_inputs(1, &mut array);
+        log::info!("INPUTS: {} {}", array[0], array[1]);
+
+
+        ecp5.write_interrupts_mask(1, &[0, 0b0100_0000]);
+        ecp5.read_interrupts_mask(1, &mut array);
+        log::info!("INT MASK: {} {}", array[0], array[1]);
         /*
             Check QSPI to ECP5 connection
         */
@@ -353,9 +406,10 @@ mod app {
         (shared, local, init::Monotonics(stm_sys_board.systick))
     }
 
-    #[idle(shared=[network], local=[i2c])]
+    #[idle(shared=[network, ecp5], local=[i2c])]
     fn idle(mut c: idle::Context) -> ! {
         loop {
+            c.shared.ecp5.lock(|ecp| Max1329::set_adc_setup_direct(1,  ecp, max1329::adc::Mux::AVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar));
             //let mut data : [u8; 2] = [0; 2];
             //c.local.i2c.write_read(0b1001000 as u8, &[0], &mut data).unwrap();
             //let temp : u16 = ( (data[0] as u16) << 4) | ((data[1] as u16) >> 4);
@@ -368,6 +422,11 @@ mod app {
                 NetworkState::Updated => {}
                 NetworkState::NoChange => cortex_m::asm::wfi(),
             }
+            let mut array = [0, 0];
+            c.shared.ecp5.lock(|ecp| ecp.read_inputs(1, &mut array));
+            log::info!("INPUTS: {} {}", array[0], array[1]);
+            c.shared.ecp5.lock(|ecp| ecp.read_interrupts(1, &mut array));
+            log::info!("Interrupts: {} {}", array[0], array[1]);
         }
     }
 
@@ -411,12 +470,13 @@ mod app {
         (device0, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
     }
 
-    #[task(binds = EXTI15_10, priority = 4, local = [exti_pin0], shared = [exti])]
+    #[task(binds = EXTI3, priority = 4, local = [exti_pin0], shared = [exti])]
     fn device0interrupt(mut c: device0interrupt::Context) {
+        log::info!(":::::::::::::::::::::::::::INTERRUPT:::::::::::::::::::::::::::::::");
         c.shared.exti.lock(|ex| {
-            if ex.is_pending(Event::GPIO13){
+            if ex.is_pending(Event::GPIO3){
                 c.local.exti_pin0.clear_interrupt_pending_bit();
-                device0_check_interrupt::spawn().unwrap();
+                //device0_check_interrupt::spawn().unwrap();
             }
         })
     }

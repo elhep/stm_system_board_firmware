@@ -178,7 +178,7 @@ impl ECP5 {
             //     self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SPI::IDLE, &mut idle).unwrap();
             // }
             if (data.len() - pointer) == 1{     // default single data transfer is 16 bits, end transfer
-                log::info!("WRITE SPI Pojedynczy bajt");
+                //log::info!("WRITE SPI Pojedynczy bajt");
                 self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + OFFSET_TO_SPI + SPI::LENGTH, &[0x00, 0x07]).unwrap();
                 end = self.check_spi_end(slot_number, end, true);
                 self.spi_machine_write(slot_number, &[data[pointer], 0x00]);
@@ -211,6 +211,59 @@ impl ECP5 {
                         data: &mut [u8]){
         self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INPUT, data);
     }
+
+    pub fn read_oe(&mut self,
+                    slot_number: u8,
+                    data: &mut [u8]){
+        self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::OE, data);
+    }
+
+    pub fn write_oe(&mut self,
+                    slot_number: u8,
+                    data: &[u8]){
+        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::OE, data);
+    }
+
+    pub fn write_outputs(&mut self,
+                slot_number: u8,
+                data: &[u8]){
+        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::OUTPUT, data);
+    }
+
+    pub fn write_interrupts_mask(&mut self,
+                slot_number: u8,
+                data: &[u8]){
+        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INT_MSK, data);
+    }
+
+    pub fn read_interrupts_mask(&mut self,
+                    slot_number: u8,
+                    data: &mut [u8]){
+        self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INT_MSK, data);
+    }
+
+    pub fn read_interrupts(&mut self,
+                slot_number: u8,
+                data: &mut [u8]){
+        self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INT, data);
+    }
+
+    // pub fn write_outputs(&mut self,
+    //                       slot_number: u8,
+    //                       value: u8){
+    //     let mut io : u16 = 0;
+    //     for i in 0..8{
+    //         log::info!("Pętla {}", i);
+    //         if (value & (1 << i)) != 0 {
+    //             io |= 1 << (i * 2)
+    //         } else {
+    //             io |= 1 << (i * 2 + 1)
+    //         }
+    //
+    //     }
+    //     log::info!("Koniec pętli {}", io);
+    //     //self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::OUTPUT, &[value]).unwrap();
+    // }
 
     fn spi_last_bytes(&mut self,
                      slot_number: u8,

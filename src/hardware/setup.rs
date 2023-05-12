@@ -181,7 +181,7 @@ fn create_interrupt_conf<T>(mut pin: T, exti: &mut hal::device::EXTI, syscfg: &m
         T: ExtiPin
     {
         pin.make_interrupt_source(syscfg);
-        pin.trigger_on_edge(exti, Edge::Falling);
+        pin.trigger_on_edge(exti, Edge::Rising);
         pin.enable_interrupt(exti);
         pin
     }
@@ -290,7 +290,7 @@ pub fn setup(
     let gpiog = device.GPIOG.split(ccdr.peripheral.GPIOG);
 
     let interrupts_inputs = {
-        let int0 = gpioe.pe13.into_pull_up_input();
+        let int0 = gpioc.pc3.into_pull_up_input();
         let int1 = gpiod.pd1.into_pull_up_input();
         let int2 = gpiog.pg4.into_pull_up_input();
         let int3 = gpiog.pg5.into_pull_up_input();
