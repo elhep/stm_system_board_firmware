@@ -1,15 +1,3 @@
-///! Stabilizer Telemetry Capabilities
-///!
-///! # Design
-///! Telemetry is reported regularly using an MQTT client. All telemetry is reported in SI units
-///! using standard JSON format.
-///!
-///! In order to report ADC/DAC codes generated during the DSP routines, a telemetry buffer is
-///! employed to track the latest codes. Converting these codes to SI units would result in
-///! repetitive and unnecessary calculations within the DSP routine, slowing it down and limiting
-///! sampling frequency. Instead, the raw codes are stored and the telemetry is generated as
-///! required immediately before transmission. This ensures that any slower computation required
-///! for unit conversion can be off-loaded to lower priority tasks.
 use heapless::{String, Vec};
 use minimq::{QoS, Retain};
 use serde::Serialize;
@@ -24,53 +12,6 @@ pub struct TelemetryClient {
     mqtt: minimq::Minimq<NetworkReference, SystemTimer, 512, 1>,
     telemetry_topic: String<128>,
  //   _telemetry: core::marker::PhantomData<T>,
-}
-
-/// The telemetry buffer is used for storing sample values during execution.
-///
-/// # Note
-/// These values can be converted to SI units immediately before reporting to save processing time.
-/// This allows for the DSP process to continually update the values without incurring significant
-/// run-time overhead during conversion to SI units.
-#[derive(Copy, Clone)]
-pub struct TelemetryBuffer {
-    /// The latest digital input states during processing.
-    pub digital_inputs: [bool; 2],
-}
-
-/// The telemetry structure is data that is ultimately reported as telemetry over MQTT.
-///
-/// # Note
-/// This structure should be generated on-demand by the buffer when required to minimize conversion
-/// overhead.
-#[derive(Serialize)]
-pub struct Telemetry {
-    /// Most recent digital input assertion state.
-    pub digital_inputs: [bool; 2],
-}
-
-impl Default for TelemetryBuffer {
-    fn default() -> Self {
-        Self {
-            digital_inputs: [false, false],
-        }
-    }
-}
-
-impl TelemetryBuffer {
-    /// Convert the telemetry buffer to finalized, SI-unit telemetry for reporting.
-    ///
-    /// # Args
-    /// * `afe0` - The current AFE configuration for channel 0.
-    /// * `afe1` - The current AFE configuration for channel 1.
-    ///
-    /// # Returns
-    /// The finalized telemetry structure that can be serialized and reported.
-    pub fn finalize(self) -> Telemetry {
-        Telemetry {
-            digital_inputs: self.digital_inputs,
-        }
-    }
 }
 
 impl TelemetryClient {
@@ -101,7 +42,6 @@ impl TelemetryClient {
         Self {
             mqtt,
             telemetry_topic,
-          //  _telemetry: core::marker::PhantomData::default(),
         }
     }
 
@@ -134,7 +74,7 @@ impl TelemetryClient {
     /// This function is provided to force the underlying MQTT state machine to process incoming
     /// and outgoing messages. Without this, the client will never connect to the broker. This
     /// should be called regularly.
-    pub fn update(&mut self) {
+    pub fn update(&mut self) {      //TODO check if can be delated
         match self.mqtt.poll(|_client, _topic, _message, _properties| {}) {
             Err(minimq::Error::Network(
                 smoltcp_nal::NetworkError::NoIpAddress,

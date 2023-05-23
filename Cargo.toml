@@ -1,15 +1,14 @@
 [package]
 name = "stm_sys_board"
-version = "0.6.0"
+version = "0.1.0"
 resolver = "2"
 authors = [
-	"Robert Jördens <rj@quartiq.de>",
-	"Ryan Summers <ryan.summers@vertigo-designs.com>",
+	"Tomasz Przywózki <Tomasz.Przywozki@pw.edu.pl>",
 ]
-description = "Firmware for the Sinara Stabilizer board (stm32h743, eth, poe, 2 adc, 2 dac)"
-categories = ["embedded", "no-std", "hardware-support", "science"]
+description = "Firmware for the Sinara STM System Board"
+categories = ["embedded"]
 license = "MIT OR Apache-2.0"
-keywords = ["ethernet", "stm32h7", "adc", "dac", "physics"]
+keywords = ["ethernet"]
 repository = "https://github.com/quartiq/stabilizer"
 readme = "README.md"
 documentation = "https://docs.rs/stabilizer/"
@@ -59,7 +58,6 @@ version = "0.11.0"
 [features]
 default = [ ]
 nightly = ["cortex-m/inline-asm"]
-pounder_v1_1 = [ ]
 #ext_ref_burned = [ ]
 
 [profile.dev]

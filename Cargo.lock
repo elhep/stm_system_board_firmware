@@ -908,7 +908,7 @@ dependencies = [
 
 [[package]]
 name = "stm_sys_board"
-version = "0.6.0"
+version = "0.1.0"
 dependencies = [
  "asm-delay",
  "cortex-m 0.7.4",

@@ -2,14 +2,11 @@ pub use heapless;
 pub use miniconf;
 pub use serde;
 
-pub mod data_stream;
 pub mod network_processor;
 pub mod telemetry;
 pub mod settings;
 
-
 use crate::hardware::{EthernetPhy, NetworkManager, NetworkStack, SystemTimer};
-//use data_stream::{DataStream, FrameGenerator};
 use network_processor::NetworkProcessor;
 use minimq::embedded_nal::IpAddr;
 use telemetry::TelemetryClient;
@@ -21,6 +18,7 @@ pub type NetworkReference =
     smoltcp_nal::shared::NetworkStackProxy<'static, NetworkStack>;
 
 /// The default MQTT broker IP address if unspecified.
+// TODO change value
 pub const DEFAULT_MQTT_BROKER: [u8; 4] = [10, 34, 16, 10];
 
 #[derive(Copy, Clone, PartialEq)]
@@ -35,7 +33,7 @@ pub enum NetworkState {
     Updated,
     NoChange,
 }
-/// A structure of Stabilizer's default network users.
+
 pub struct NetworkUsers<S: Clone + Miniconf>{
     pub miniconf: miniconf::MqttClient<S, NetworkReference, SystemTimer, 512>,
     pub processor: NetworkProcessor,
@@ -46,7 +44,6 @@ impl<S> NetworkUsers <S>
 where
     S: Miniconf + Clone,
 {
-    /// Construct Stabilizer's default network users.
     ///
     /// # Args
     /// * `stack` - The network stack that will be used to share with all network users.

@@ -11,15 +11,7 @@ pub const SLOTS_NUM: u8 = 2;
 pub const OFFSET_TO_SPI: u8 = 6;
 pub const OFFSET_TO_SLOT: u8 = 20;
 //
-// enum Slot{
-//     Output=0,
-//     Input=1,
-//     Oe=2,
-//     Int=3,
-//     IntMsk=4,
-//     IntCl=5,
-//     _end=6
-// }
+
 
 pub mod SLOT{     // SLOT registers map (OFFSET_TO_SLOT * slot_nb + slot_reg)
     pub const OUTPUT:  u8 = 0;
@@ -28,7 +20,7 @@ pub mod SLOT{     // SLOT registers map (OFFSET_TO_SLOT * slot_nb + slot_reg)
     pub const INT:     u8 = 3;
     pub const INT_MSK: u8 = 4;
     pub const INT_CL:  u8 = 5;
-    pub const _end  :  u8 = 6;
+    pub const _END  :  u8 = 6;
 }
 
 pub mod SPI{        // SPI Register map (OFFSET_TO_SLOT * slot_nb + OFFSET_TO_SPI + spi_reg)
@@ -46,7 +38,7 @@ pub mod SPI{        // SPI Register map (OFFSET_TO_SLOT * slot_nb + OFFSET_TO_SP
     pub const READABLE: u8 = 11;
     pub const WRITABLE: u8 = 12;
     pub const IDLE:     u8 = 13;
-    pub const _end  :  u8 = 14;
+    pub const _END  :  u8 = 14;
 }
 
 pub struct ECP5{
