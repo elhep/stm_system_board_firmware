@@ -4,7 +4,7 @@ pub use stm32h7xx_hal as hal;
 use crate::hardware::ECP5InterfaceReady;
 use heapless::String;
 use embedded_hal::blocking::delay::DelayMs;
-use crate::hardware::ecp5::SPI::_end;
+//use crate::hardware::ecp5::SPI::_END;
 
 //number of slots in the design
 pub const SLOTS_NUM: u8 = 2;
@@ -387,12 +387,12 @@ impl ECP5 {
         for slot in 0..3 {
             delay.delay_ms(1000 as u32);
             log::info!("Slot {} :", slot);
-            for reg in 0..SLOT::_end{
+            for reg in 0..SLOT::_END{
                 self.read_from_ecp5(OFFSET_TO_SLOT * slot + reg, &mut array).unwrap();
                 log::info!("   {} Rejestr {} {} {}", OFFSET_TO_SLOT * slot + reg, ECP5::print_reg(reg), array[0], array[1]);
             }
             delay.delay_ms(1000 as u32);
-            for reg in 0..SPI::_end{
+            for reg in 0..SPI::_END{
                 // if OFFSET_TO_SLOT * slot + OFFSET_TO_SPI + reg == 26{
                 //     continue
                 // }
