@@ -178,6 +178,6 @@
  ///     - SilpaDefault - work in progress
 
 devices_list!(
-     SilpaDefault,HvSupPosPos,HvSupPosPos,SilpaDefault,HvSupNegNeg,HvSupNegPos,HvSupPosNeg,HvSupPosPos
+     HvSupPosNeg,HvSupPosPos,HvSupPosPos,SilpaDefault,HvSupNegNeg,HvSupNegPos,HvSupPosNeg,HvSupPosPos
 );
 

@@ -34,16 +34,14 @@ impl TelemetryBuffer{
     /// Convert ADC code to Si-unit for telemetry reporting
     ///
     /// # Args
-    /// * `gain` - The current ADC AFE input gain configuration
-    /// [CH1 U_MEAS, CH1 I_MEAS, CH2 U_MEAS, CH2 I_MEAS]
     /// * `outputs_variant` - OutputVariant of both channels (based on PCB Variant)
     ///
     /// # Returns
     /// The finalized telemetry structure that can be serialized and reported.
-    pub fn finalize(self, gain: [adc::Gain; 4], output_variants: [OutputVariant; 2]) -> Telemetry{
+    pub fn finalize(self, output_variants: [OutputVariant; 2]) -> Telemetry{
         Telemetry {
-            channels: [HvChannelTelemetry::new(gain[0..2].try_into().unwrap(), output_variants[0], self.u_meas[0], self.i_meas[0]),
-                       HvChannelTelemetry::new(gain[2..4].try_into().unwrap(), output_variants[1], self.u_meas[1], self.i_meas[1])]
+            channels: [HvChannelTelemetry::new(output_variants[0], self.u_meas[0], self.i_meas[0]),
+                       HvChannelTelemetry::new(output_variants[1], self.u_meas[1], self.i_meas[1])]
         }
     }
 }
@@ -56,25 +54,31 @@ pub struct Telemetry {
 
 #[derive(Serialize)]
 pub struct HvChannelTelemetry{
-    voltage: f32,
-    current: f32,
+    voltage_v: f32,
+    voltage_b: u16,
+    current_a: f32,
+    current_b: u16
 }
 
 impl HvChannelTelemetry{
-    pub fn new(gain: [adc::Gain; 2], output_variant: OutputVariant, u_meas: AdcCode, i_meas: AdcCode) -> Self {
-        let voltage = u_meas.voltage(gain[0], 2.5) * 600.0;
-        let current = i_meas.voltage(gain[1], 2.5) * 0.000004;
+    pub fn new(output_variant: OutputVariant, u_meas: AdcCode, i_meas: AdcCode) -> Self {
+        let voltage = u_meas.voltage(adc::Gain::G1, 2.5) * 600.0;
+        let current = i_meas.voltage(adc::Gain::G1, 2.5) * 0.000004;
         match output_variant{
            OutputVariant::Positive => {
                HvChannelTelemetry {
-                   voltage: voltage,
-                   current: current,
+                   voltage_v: voltage,
+                   voltage_b: u_meas.0,
+                   current_a: current,
+                   current_b: i_meas.0
                }
            }
            OutputVariant::Negative => {
                HvChannelTelemetry {
-                    voltage: -voltage,
-                    current: -current,
+                   voltage_v: -voltage,
+                   voltage_b: u_meas.0,
+                   current_a: -current,
+                   current_b: i_meas.0
                 }
             }
         }
@@ -91,25 +95,23 @@ impl Default for Settings{
     fn default() -> Self {
         Self {
             channels_settings: [HvChannelSettings::default(); 2],
-            telemetry_period: 10,
+            telemetry_period: 1,
         }
     }
 }
 
 impl Settings{
-    pub fn get_gains(self) -> [adc::Gain; 4] {
-        [self.channels_settings[0].u_gain, self.channels_settings[0].i_gain,
-         self.channels_settings[1].u_gain, self.channels_settings[1].i_gain]
-    }
+    // pub fn get_gains(self) -> [adc::Gain; 4] {
+    //     [self.channels_settings[0].u_gain, self.channels_settings[0].i_gain,
+    //      self.channels_settings[1].u_gain, self.channels_settings[1].i_gain]
+    // }
 }
 
 #[derive(Clone, Copy, Debug, Miniconf, PartialEq)]
 pub struct HvChannelSettings{
     enable: bool,
     u_ctrl: u16,
-    u_gain: adc::Gain,
     i_ctrl: u16,
-    i_gain: adc::Gain,
 }
 
 impl Default for HvChannelSettings{
@@ -117,9 +119,7 @@ impl Default for HvChannelSettings{
         Self{
             enable: false,
             u_ctrl: 0,
-            u_gain: adc::Gain::G1,
             i_ctrl: 0,
-            i_gain: adc::Gain::G1
         }
     }
 }
@@ -206,9 +206,11 @@ impl HVSUP_ISOL<$variant>
     /// False - switch OFF
     fn switch_hv_output(&self, ecp5: &mut ECP5, state: bool){
         if state {
-            Max1329::set_dpio_setup_register(self.slot, ecp5, 0xF0);
+            ecp5.write_outputs(1, &[0, 0b0011_0000]); // enable hv
+            //Max1329::set_dpio_setup_register(self.slot, ecp5, 0xF0);
         } else {
-            Max1329::set_dpio_setup_register(self.slot, ecp5, 0xFF);
+            ecp5.write_outputs(1, &[0, 0b0000_0000]); // enable hv
+            //Max1329::set_dpio_setup_register(self.slot, ecp5, 0xFF);
         }
     }
 }
@@ -263,7 +265,7 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
     }
 
     fn settings_update(&mut self, ecp5: &mut ECP5, new_settings: Settings) -> () {
-        for i in 0..2{
+        for i in 0..1{ // TODO change for loop 0..2 after tests
             // Change CS pol for second Max
             if i == 1{
                 ecp5.set_spi_cs_pol(self.slot, 1);
@@ -292,7 +294,7 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
     }
 
     fn telemetry(&mut self) -> (Telemetry, u16) {
-            (self.telemetry.finalize(self.settings.get_gains(), hvsup_telemetry!($variant)),
+            (self.telemetry.finalize(hvsup_telemetry!($variant)),
              self.settings.telemetry_period)
 
     }
