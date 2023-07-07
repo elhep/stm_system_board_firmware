@@ -68,7 +68,7 @@ where
     }
 
 
-    fn telemetry(&mut self) -> (Telemetry, u16) {
+    fn telemetry(&mut self, _ecp5: &mut ECP5) -> (Telemetry, u16) {
         (self.telemetry, 10)
     }
 

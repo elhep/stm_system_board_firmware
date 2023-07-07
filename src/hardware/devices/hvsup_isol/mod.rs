@@ -13,7 +13,8 @@ pub mod hvsupnegpos;
 pub struct TelemetryBuffer{
     /// The latest input samples of AIN1 on both MAX( U_MEAS CH1 / U_MEAS CH2).
     u_meas: [AdcCode; 2],
-    /// The latest input samples of AIN2 on both MAX( I_MEAS CH1 / I_MEAS CH2).
+    /// The latest input samples
+    /// of AIN2 on both MAX( I_MEAS CH1 / I_MEAS CH2).
     i_meas: [AdcCode; 2],
     /// Current state of ADCs input Multiplexers (MAX1 / MAX2).
     current_meas: [adc::Mux; 2],
@@ -187,14 +188,14 @@ impl HVSUP_ISOL<$variant>
             self.telemetry.u_meas[max_nr] = Max1329::read_adc_data_register(self.slot, ecp5);
             Max1329::set_adc_setup_direct(self.slot, ecp5,
                                             adc::Mux::AIN2_AGND,
-                                            self.settings.channels_settings[max_nr].i_gain,
+                                            adc::Gain::G1,
                                             adc::Bip::Unipolar);
             self.telemetry.current_meas[max_nr] = adc::Mux::AIN2_AGND;
         } else {
             self.telemetry.i_meas[max_nr] = Max1329::read_adc_data_register(self.slot, ecp5);
             Max1329::set_adc_setup_direct(self.slot, ecp5,
                                             adc::Mux::AIN1_AGND,
-                                            self.settings.channels_settings[max_nr].u_gain,
+                                            adc::Gain::G1,
                                             adc::Bip::Unipolar);
             self.telemetry.current_meas[max_nr] = adc::Mux::AIN1_AGND;
         }
@@ -266,6 +267,7 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
 
     fn settings_update(&mut self, ecp5: &mut ECP5, new_settings: Settings) -> () {
         for i in 0..1{ // TODO change for loop 0..2 after tests
+            log::info!("Settings loop");
             // Change CS pol for second Max
             if i == 1{
                 ecp5.set_spi_cs_pol(self.slot, 1);
@@ -276,12 +278,13 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
             }
 
             // Change DACA value ( U )
-            if self.settings.channels_settings[i].u_ctrl != new_settings.channels_settings[i].u_ctrl{
-                Max1329::set_daca_value(self.slot, ecp5, new_settings.channels_settings[i].u_ctrl);
+            if self.settings.channels_settings[i].u_ctrl != new_settings.channels_settings[i].u_ctrl{ // TODO change slot number 1 to self.slot
+                Max1329::set_daca_value(1, ecp5, new_settings.channels_settings[i].u_ctrl);
             }
+
             // Change DACB value ( I )
             if self.settings.channels_settings[i].i_ctrl != new_settings.channels_settings[i].i_ctrl{
-                Max1329::set_dacb_value(self.slot, ecp5, new_settings.channels_settings[i].i_ctrl);
+                Max1329::set_dacb_value(1, ecp5, new_settings.channels_settings[i].i_ctrl);
             }
 
             // Change CS pol to first Max again (default for idle)
@@ -291,9 +294,23 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
             // ADC Gain will be changed when receiveng next sample
         }
         self.settings = new_settings;
+        log::info!("Exit Settings");
     }
 
-    fn telemetry(&mut self) -> (Telemetry, u16) {
+    fn telemetry(&mut self, ecp5: &mut ECP5) -> (Telemetry, u16) {
+            Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+            while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
+                log::info!("W8 for ADC");
+            }
+            let x = Max1329::read_adc_data_register(1, ecp5);
+            self.telemetry.u_meas[0] = AdcCode(x.0);
+
+            Max1329::set_adc_setup_direct(1,
+            ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+
+            let x = Max1329::read_adc_data_register(1, ecp5);
+            self.telemetry.i_meas[0] = AdcCode(x.0);
+
             (self.telemetry.finalize(hvsup_telemetry!($variant)),
              self.settings.telemetry_period)
 

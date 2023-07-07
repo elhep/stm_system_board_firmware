@@ -66,7 +66,7 @@ mod app {
     #[local]
     struct Local {
         exti_pin0: ExtIntPin0,
-        i2c: hal::i2c::I2c<hal::stm32::I2C1>,
+        // i2c: hal::i2c::I2c<hal::stm32::I2C1>,
     }
 
     #[init]
@@ -88,7 +88,7 @@ mod app {
             env!("CARGO_BIN_NAME"),
             stm_sys_board.net.mac_address,
             option_env!("BROKER")
-                .unwrap_or("192.168.0.101")
+                .unwrap_or("192.168.95.145")
                 .parse()
                 .unwrap(),
             Settings::default(),
@@ -216,8 +216,8 @@ mod app {
                           max1329::dac::OpAmp::Disable,
                           max1329::dac::RefConf::ExtBuffOff);
             log::info!("SET_DACA_VALUE");
-            let daca_value = 0b0000_0001_0000_0000;
-            let dacb_value = 0b0000_0100_0000_0000;
+            let daca_value = 0b0000_0001_0000_1000;
+            let dacb_value = 0b0000_0001_1000_0000;
             Max1329::set_daca_value(1, ecp, daca_value);
             Max1329::set_dacb_value(1, ecp, dacb_value);
 
@@ -246,8 +246,6 @@ mod app {
 
         //    -------------------------:::::::  ADC TESTS MAX 1  :::::::-------------------------
 
-        let x = Max1329::read_status_register(1, &mut ecp5);
-        log::info!("Status przed ADC {}", x);
 
         delay.delay_ms(100 as u32);
 
@@ -286,110 +284,112 @@ mod app {
         log::info!("DPIO CONTROL {} {}", x[0], x[1]);
 
         //    -------------------------:::::::  ADC TESTS MAX 2  :::::::-------------------------
-
-        log::info!("SECOND MAX: 1st step: APIO MODE");
-        Max1329::set_apio_control_register(1, &mut ecp5, 0b1111_1111);
-
-        let x = Max1329::read_interrrupt_mask_register(1, &mut ecp5);
-        //delay.delay_ms(100000 as u32);
-        log::info!("MAX 0: main INT mask register {} {} {}", x[0], x[1], x[2]);
-        Max1329::setup_spi_cs_pol(1, &mut ecp5, 1);
-        let x = Max1329::read_interrrupt_mask_register(1, &mut ecp5);
-        //delay.delay_ms(100000 as u32);
-        log::info!("MAX 1: main INT mask register {} {} {}", x[0], x[1], x[2]);
-        log::info!("Próba odczytu SPI z MAX1329");
-        let x = Max1329::read_clock_control_register(1, &mut ecp5);
-        //delay.delay_ms(100000 as u32);
-        log::info!("Clock control REG: {} - should be {}", x, 0b0110_0001);
-        core::assert_eq!(x, 0b01100001);
-
-        Max1329::set_dpio_control_register(1, &mut ecp5, 0xFFFF);  // outputs
-        Max1329::set_dpio_setup_register(1, &mut ecp5, 0x00);      // all low
-
-        let variables = Variables{ // External ref not burned but still have to setup internal punp
-            cpvm_reg: 0b1100_1001,
-            reference: max1329::adc::RefConf::ExtBuffOff,
-        };
-        Max1329::set_cpvm_control_register(1, &mut ecp5, variables.cpvm_reg);
-
-        Max1329::set_interrupt_mask_register(1, &mut ecp5, 0b1110_1111_1111_1111_1111_1111); // unmask ADC done
-        Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, variables.reference);
-        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-
-
-        while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
-            log::info!("W8 for ADC");
-        }
-
-        log::info!("Status po ADC {}", x);
-        let x = Max1329::read_adc_data_register(1, &mut ecp5);
-
-        log::info!("ADC value for DVDD {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
-        // TESTOWANIE INTERRUPTOW
-        //ecp5.write_outputs(1, 0b1100_0101);
-        let mut array = [0, 0];
-        ecp5.read_inputs(1, &mut array); //        ecp5.read_from_ecp5(1 * OFFSET_TO_SLOT + SLOT::INPUT, &mut array).unwrap();
-        log::info!("INPUTS: {} {}", array[0], array[1]);
-        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-        let mut array = [0, 0];
-        ecp5.read_inputs(1, &mut array);
-        log::info!("INPUTS: {} {}", array[0], array[1]);
-        log::info!("Status register {}", Max1329::read_status_register(1, &mut ecp5));
-        let mut array = [0, 0];
-        ecp5.read_inputs(1, &mut array);
-        log::info!("INPUTS: {} {}", array[0], array[1]);
-        while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
-            log::info!("W8 for ADC");
-        }
-        let x = Max1329::read_adc_data_register(1, &mut ecp5);
-        log::info!("ADC value for AVDD {}", x.0);    // Avdd / 4 (4 V / 4 = 1 V)
-
-        let mut array = [0, 0];
-        ecp5.read_oe(1, &mut array); //
-        log::info!("OES: {} {}", array[0], array[1]);
+        //
+        // log::info!("SECOND MAX: 1st step: APIO MODE");
+        // Max1329::set_apio_control_register(1, &mut ecp5, 0b1111_1111);
+        //
+        // let x = Max1329::read_interrrupt_mask_register(1, &mut ecp5);
+        // //delay.delay_ms(100000 as u32);
+        // log::info!("MAX 0: main INT mask register {} {} {}", x[0], x[1], x[2]);
+        // Max1329::setup_spi_cs_pol(1, &mut ecp5, 1);
+        // let x = Max1329::read_interrrupt_mask_register(1, &mut ecp5);
+        // //delay.delay_ms(100000 as u32);
+        // log::info!("MAX 1: main INT mask register {} {} {}", x[0], x[1], x[2]);
+        // log::info!("Próba odczytu SPI z MAX1329");
+        // let x = Max1329::read_clock_control_register(1, &mut ecp5);
+        // //delay.delay_ms(100000 as u32);
+        // log::info!("Clock control REG: {} - should be {}", x, 0b0110_0001);
+        // core::assert_eq!(x, 0b01100001);
+        //
+        // Max1329::set_dpio_control_register(1, &mut ecp5, 0xFFFF);  // outputs
+        // Max1329::set_dpio_setup_register(1, &mut ecp5, 0x00);      // all low
+        //
+        // let variables = Variables{ // External ref not burned but still have to setup internal punp
+        //     cpvm_reg: 0b1100_1001,
+        //     reference: max1329::adc::RefConf::ExtBuffOff,
+        // };
+        // Max1329::set_cpvm_control_register(1, &mut ecp5, variables.cpvm_reg);
+        //
+        // Max1329::set_interrupt_mask_register(1, &mut ecp5, 0b1110_1111_1111_1111_1111_1111); // unmask ADC done
+        // Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, variables.reference);
+        // Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        //
+        //
+        // while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
+        //     log::info!("W8 for ADC");
+        // }
+        //
+        // log::info!("Status po ADC {}", x);
+        // let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        //
+        // log::info!("ADC value for DVDD {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
+        // // TESTOWANIE INTERRUPTOW
+        // //ecp5.write_outputs(1, 0b1100_0101);
+        // let mut array = [0, 0];
+        // ecp5.read_inputs(1, &mut array); //        ecp5.read_from_ecp5(1 * OFFSET_TO_SLOT + SLOT::INPUT, &mut array).unwrap();
+        // log::info!("INPUTS: {} {}", array[0], array[1]);
+        // Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // let mut array = [0, 0];
+        // ecp5.read_inputs(1, &mut array);
+        // log::info!("INPUTS: {} {}", array[0], array[1]);
+        // log::info!("Status register {}", Max1329::read_status_register(1, &mut ecp5));
+        // let mut array = [0, 0];
+        // ecp5.read_inputs(1, &mut array);
+        // log::info!("INPUTS: {} {}", array[0], array[1]);
+        // while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
+        //     log::info!("W8 for ADC");
+        // }
+        // let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        // log::info!("ADC value for AVDD {}", x.0);    // Avdd / 4 (4 V / 4 = 1 V)
+        //
+        // let mut array = [0, 0];
+        // ecp5.read_oe(1, &mut array); //
+        // log::info!("OES: {} {}", array[0], array[1]);
         ecp5.write_oe(1, &[0, 0b0011_0000]);  // driving PSU_EN to 1 + HV EN
-        ecp5.write_outputs(1, &[0, 0b0001_0000]);
-        ecp5.read_inputs(1, &mut array);
-        log::info!("INPUTS: {} {}", array[0], array[1]);
-                ecp5.read_inputs(1, &mut array);
-        log::info!("INPUTS: {} {}", array[0], array[1]);
+        // ecp5.write_outputs(1, &[0, 0b0001_0000]);
+        // ecp5.read_inputs(1, &mut array);
+        // log::info!("INPUTS: {} {}", array[0], array[1]);
+        //         ecp5.read_inputs(1, &mut array);
+        // log::info!("INPUTS: {} {}", array[0], array[1]);
+        //
+        // log::info!("Status register {}", Max1329::read_status_register(1, &mut ecp5));
+         Max1329::setup_spi_cs_pol(1, &mut ecp5, 0);
 
-        log::info!("Status register {}", Max1329::read_status_register(1, &mut ecp5));
-        Max1329::setup_spi_cs_pol(1, &mut ecp5, 0);
-        log::info!("Status register {}", Max1329::read_status_register(1, &mut ecp5));
-        ecp5.read_inputs(1, &mut array);
-        log::info!("INPUTS: {} {}", array[0], array[1]);
-
-        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-
-                ecp5.read_inputs(1, &mut array);
-        log::info!("INPUTS: {} {}", array[0], array[1]);
-        delay.delay_ms(1000 as u32);
-                        ecp5.read_inputs(1, &mut array);
-        log::info!("INPUTS: {} {}", array[0], array[1]);
-                        ecp5.read_inputs(1, &mut array);
-        log::info!("INPUTS: {} {}", array[0], array[1]);
-
-        log::info!("Status register {}", Max1329::read_status_register(1, &mut ecp5));
-                        ecp5.read_inputs(1, &mut array);
-        log::info!("INPUTS: {} {}", array[0], array[1]);
-        delay.delay_ms(1000 as u32);
-                        ecp5.read_inputs(1, &mut array);
-        log::info!("INPUTS: {} {}", array[0], array[1]);
-                delay.delay_ms(1000 as u32);
-                        ecp5.read_inputs(1, &mut array);
-        log::info!("INPUTS: {} {}", array[0], array[1]);
-
-
-        ecp5.write_interrupts_mask(1, &[0, 0b0100_0000]);
-        ecp5.read_interrupts_mask(1, &mut array);
-        log::info!("INT MASK: {} {}", array[0], array[1]);
+        /*   -------------------------:::::::  Interrupts MAX 1  :::::::-------------------------  */
+        // log::info!("Status register {}", Max1329::read_status_register(1, &mut ecp5));
+        // ecp5.read_inputs(1, &mut array);
+        // log::info!("INPUTS: {} {}", array[0], array[1]);
+        //
+        // Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        //
+        //         ecp5.read_inputs(1, &mut array);
+        // log::info!("INPUTS: {} {}", array[0], array[1]);
+        // delay.delay_ms(1000 as u32);
+        //                 ecp5.read_inputs(1, &mut array);
+        // log::info!("INPUTS: {} {}", array[0], array[1]);
+        //                 ecp5.read_inputs(1, &mut array);
+        // log::info!("INPUTS: {} {}", array[0], array[1]);
+        //
+        // log::info!("Status register {}", Max1329::read_status_register(1, &mut ecp5));
+        //                 ecp5.read_inputs(1, &mut array);
+        // log::info!("INPUTS: {} {}", array[0], array[1]);
+        // delay.delay_ms(1000 as u32);
+        //                 ecp5.read_inputs(1, &mut array);
+        // log::info!("INPUTS: {} {}", array[0], array[1]);
+        //         delay.delay_ms(1000 as u32);
+        //                 ecp5.read_inputs(1, &mut array);
+        // log::info!("INPUTS: {} {}", array[0], array[1]);
+        //
+        //
+        // ecp5.write_interrupts_mask(1, &[0, 0b0100_0000]);
+        // ecp5.read_interrupts_mask(1, &mut array);
+        // log::info!("INT MASK: {} {}", array[0], array[1]);
 
 
         test_dac(&mut ecp5);
 
-        ecp5.write_outputs(1, &[0, 0b0011_0000]); // enable hv
+        ecp5.write_outputs(1, &[0, 0b0000_0000]); // enable hv
 
         Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
 
@@ -424,46 +424,70 @@ mod app {
         let x = Max1329::read_adc_data_register(1, &mut ecp5);
         log::info!("ADC value for HV_IDD {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
 
-        log::info!("::::::::::::::::::::::::::::::::: DRUGI KANAL ::::::::::::::::::::::::::::::::");    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
-        Max1329::setup_spi_cs_pol(1, &mut ecp5, 1);
+        // let i = 0;
+        // while i != 100 {
+        //         Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        //         while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
+        //             log::info!("W8 for ADC");
+        //         }
+        //         let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        //         log::info!("ADC value HV {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
+        //
+        //
+        //         Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        //
+        //
+        //         while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
+        //             log::info!("W8 for ADC");
+        //         }
+        //         let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        //         log::info!("ADC value for HV_IDD {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
+        //
+        //         delay.delay_ms(5000 as u32);
+        // }
 
 
-        test_dac(&mut ecp5);
 
-        ecp5.write_outputs(1, &[0, 0b0011_0000]); // enable hv
-
-        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-
-        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-        while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
-            log::info!("W8 for ADC");
-        }
-        let x = Max1329::read_adc_data_register(1, &mut ecp5);
-        log::info!("ADC value HV {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
-
-        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-        while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
-            log::info!("W8 for ADC");
-        }
-        let x = Max1329::read_adc_data_register(1, &mut ecp5);
-        log::info!("ADC value HV {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
-
-        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-        while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
-            log::info!("W8 for ADC");
-        }
-        let x = Max1329::read_adc_data_register(1, &mut ecp5);
-        log::info!("ADC value HV {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
-
-
-        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-
-
-        while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
-            log::info!("W8 for ADC");
-        }
-        let x = Max1329::read_adc_data_register(1, &mut ecp5);
-        log::info!("ADC value for HV_IDD {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
+        // log::info!("::::::::::::::::::::::::::::::::: DRUGI KANAL ::::::::::::::::::::::::::::::::");    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
+        // Max1329::setup_spi_cs_pol(1, &mut ecp5, 1);
+        //
+        //
+        // test_dac(&mut ecp5);
+        //
+        // ecp5.write_outputs(1, &[0, 0b0011_0000]); // enable hv
+        //
+        // Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        //
+        // Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
+        //     log::info!("W8 for ADC");
+        // }
+        // let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        // log::info!("ADC value HV {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
+        //
+        // Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
+        //     log::info!("W8 for ADC");
+        // }
+        // let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        // log::info!("ADC value HV {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
+        //
+        // Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
+        //     log::info!("W8 for ADC");
+        // }
+        // let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        // log::info!("ADC value HV {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
+        //
+        //
+        // Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        //
+        //
+        // while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
+        //     log::info!("W8 for ADC");
+        // }
+        // let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        // log::info!("ADC value for HV_IDD {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
 
         /*
             Check QSPI to ECP5 connection
@@ -483,19 +507,20 @@ mod app {
 
         let local = Local {
             exti_pin0: exti_pins.0,
-            i2c,
+            // i2c,
         };
 
         settings_update::spawn().unwrap();
+        telemetry0::spawn().unwrap();
         ethernet_link::spawn().unwrap();
 
         (shared, local, init::Monotonics(stm_sys_board.systick))
     }
 
-    #[idle(shared=[network, ecp5], local=[i2c])]
+    #[idle(shared=[network])]
     fn idle(mut c: idle::Context) -> ! {
         loop {
-            c.shared.ecp5.lock(|ecp| Max1329::set_adc_setup_direct(1,  ecp, max1329::adc::Mux::AVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar));
+            //c.shared.ecp5.lock(|ecp| Max1329::set_adc_setup_direct(1,  ecp, max1329::adc::Mux::AVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar));
 
             match c.shared.network.lock(|net| net.update()) {
                 NetworkState::SettingsChanged => {
@@ -525,14 +550,16 @@ mod app {
             None => {},
             }
         });
+
+        // log::info!("SETTINGS UPDATE");
     }
 
-    #[task(priority = 1, shared=[network, device0])]
+    #[task(priority = 1, shared=[network, ecp5, device0])]
     fn telemetry0(mut c: telemetry0::Context) {
-        let (telemetry, telemetry_period) = c.shared.device0.lock(|device| (device.telemetry()));
+        let (telemetry, telemetry_period) = c.shared.ecp5.lock(|ecp5| c.shared.device0.lock(|device| (device.telemetry(ecp5))));
 
         c.shared.network.lock(|net| net.telemetry.publish(DEVICE0_TELEMETRY_PREFIX, &telemetry));
-
+        // log::info!("TELEMETRY");
         telemetry0::Monotonic::spawn_after((telemetry_period as u64).secs())
             .unwrap();
     }

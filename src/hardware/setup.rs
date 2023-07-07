@@ -513,8 +513,8 @@ pub fn setup(
                 .pc5
                 .into_alternate_af11()
                 .set_speed(hal::gpio::Speed::VeryHigh);
-            let rmii_tx_en = gpiog
-                .pg11
+            let rmii_tx_en = gpiob
+                .pb11
                 .into_alternate_af11()
                 .set_speed(hal::gpio::Speed::VeryHigh);
             let rmii_txd0 = gpiog
