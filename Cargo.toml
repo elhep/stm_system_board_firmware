@@ -9,10 +9,10 @@ description = "Firmware for the Sinara STM System Board"
 categories = ["embedded"]
 license = "MIT OR Apache-2.0"
 keywords = ["ethernet"]
-repository = "https://github.com/quartiq/stabilizer"
+repository = "https://github.com/elhep/stm_system_board_firmware"
 readme = "README.md"
-documentation = "https://docs.rs/stabilizer/"
-edition = "2021"
+documentation = ""
+edition = "2023"
 exclude = [
 	".gitignore",
 	"doc/",
