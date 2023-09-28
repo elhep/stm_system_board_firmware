@@ -1,1 +1,3 @@
 /target/*
+/Python/__pycache__
+/Python/Connect.py
