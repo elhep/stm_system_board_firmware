@@ -96,7 +96,7 @@ impl Default for Settings{
     fn default() -> Self {
         Self {
             channels_settings: [HvChannelSettings::default(); 2],
-            telemetry_period: 1,
+            telemetry_period: 250,
         }
     }
 }
@@ -208,9 +208,11 @@ impl HVSUP_ISOL<$variant>
     fn switch_hv_output(&self, ecp5: &mut ECP5, state: bool){
         if state {
             ecp5.write_outputs(1, &[0, 0b0011_0000]); // enable hv
+            log::info!("IO switch ON");
             //Max1329::set_dpio_setup_register(self.slot, ecp5, 0xF0);
         } else {
             ecp5.write_outputs(1, &[0, 0b0000_0000]); // enable hv
+            log::info!("IO switch OFF");
             //Max1329::set_dpio_setup_register(self.slot, ecp5, 0xFF);
         }
     }
