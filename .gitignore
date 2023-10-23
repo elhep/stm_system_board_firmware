@@ -1,3 +1,6 @@
 /target/*
 /Python/__pycache__
 /Python/Connect.py
+/Manuals/
+notes.txt
+Setup.docx

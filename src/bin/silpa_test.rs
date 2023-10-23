@@ -8,6 +8,9 @@
 #![no_std]
 #![no_main]
 
+// TODO
+// Poczytac o tym jak to jest z MQTT i dopytac
+// Ogarnac wysylanie/odbieranie po MQTT i tworzenie topicow
 
 // TODO delete all //// comments
 // TODO Add P_PRES0_N and P_PRES1_P
@@ -16,7 +19,7 @@
 // TODO powercycle - pin PS_ON_N (in DIOT it's software issue)
 
 use fugit::ExtU64;
-
+use heapless::String;
 use stm_sys_board::{
     hardware::{
         self,
@@ -47,6 +50,7 @@ mod app {
     use embedded_hal::digital::v2::OutputPin;
     //use heapless::binary_heap::Max;
     use stm_sys_board::hardware::devices::max1329;
+    // use stm_sys_board::hardware::devices::max1329::adc;
     use stm_sys_board::hardware::devices::max1329::Max1329;
     //use stm_sys_board::hardware::ecp5;
     use super::*;
@@ -87,7 +91,7 @@ mod app {
             env!("CARGO_BIN_NAME"),
             stm_sys_board.net.mac_address,
             option_env!("BROKER")
-                .unwrap_or("192.168.0.101")
+                .unwrap_or("192.168.0.101") // Ustawic adres brokera ("127.0.0.1")
                 .parse()
                 .unwrap(),
             Settings::default(),
@@ -100,17 +104,17 @@ mod app {
         let mut servmod = stm_sys_board.servmod;
         let mut array : [u8; 2] = [0x00, 0x00];
 
-
+        match network.miniconf.
         /*
             STM SYS BOARD - I2C temps sensors, EEPROM
         */
 
         log::info!("TEST 1: STM_SYS_Board I2C - temp sensors & eeprom");
-        match hardware::lm75a::read_temp(&mut i2c, 0b1001_000){
+        match hardware::lm75a::read_temp(&mut i2c, 0b1001_000){ // Addr 0x48
             Ok(temp) => log::info!("Temp 1: {}", temp),
             Err(_e) => panic!("I2C 1st LM75 on Sys_Board error!"),
         };
-        match hardware::lm75a::read_temp(&mut i2c, 0b1001_001){
+        match hardware::lm75a::read_temp(&mut i2c, 0b1001_001){ // Addr 0x49
             Ok(temp) => log::info!("Temp 2: {}", temp),
             Err(_e) => panic!("I2C 2nd LM75 on Sys_Board error!"),
         };
@@ -119,14 +123,14 @@ mod app {
         log::info!("TEST SILPA SLOT 5: eeprom");
         servmod.4.set_low().unwrap();
 
-        match hardware::lm75a::read_temp(&mut i2c_bp, 0b1001_000){
-            Ok(temp) => log::info!("Temp 1: {}", temp),
-            Err(_e) => panic!("I2C 1st LM75 on Sipla error!"),
-        };
-        match hardware::lm75a::read_temp(&mut i2c_bp, 0b1001_001){
-            Ok(temp) => log::info!("Temp 2: {}", temp),
-            Err(_e) => panic!("I2C 2nd LM75 on Sipla error!"),
-        };
+        // match hardware::lm75a::read_temp(&mut i2c_bp, 0b1001_000){
+        //     Ok(temp) => log::info!("Temp 1: {}", temp),
+        //     Err(_e) => panic!("I2C 1st LM75 on Sipla error!"),
+        // };
+        // match hardware::lm75a::read_temp(&mut i2c_bp, 0b1001_001){
+        //     Ok(temp) => log::info!("Temp 2: {}", temp),
+        //     Err(_e) => panic!("I2C 2nd LM75 on Sipla error!"),
+        // };
         hardware::eeprom::test_eeprom(&mut i2c_bp, 0b1010_000).unwrap();
 
         log::info!("Silpa I2C test done");
@@ -138,12 +142,8 @@ mod app {
         delay.delay_ms(1000 as u32);
         ecp5.read_from_ecp5(40, &mut array).unwrap();
         log::info!("Odebrane id1: {} {}", array[0], array[1]);
-        core::assert_eq!(array[0], 0xAA);
-        core::assert_eq!(array[1], 0xAA);
         ecp5.read_from_ecp5(41, &mut array).unwrap();
         log::info!("Odebrane id2: {} {}", array[0], array[1]);
-        core::assert_eq!(array[0], 0x55);
-        core::assert_eq!(array[1], 0x55);
 
         log::info!("Odczyt inputów ze slotu 1");
         ecp5.read_inputs(1, &mut array);
@@ -155,45 +155,39 @@ mod app {
 
         Max1329::reset_device(1, &mut ecp5);
         //delay.delay_ms(100000 as u32);
-        log::info!("Próba odczytu SPI z MAX1329");
-        let x = Max1329::read_clock_control_register(1, &mut ecp5);
-        //delay.delay_ms(100000 as u32);
-        log::info!("Clock control REG: {} - should be {}", x, 0b0110_0001);
-        core::assert_eq!(x, 0b01100001);
 
+        // -----------------------------------------------------------------------
+        // Clock Control
+        log::info!("Próba Zapisu do Clock Control Register");
+        Max1329::set_clock_control_register(1, &mut ecp5, 0b0100_0011);
+        log::info!("Potwierdzenie zapisania poprawnej wartości");
+        let x = Max1329::read_clock_control_register(1, &mut ecp5);
+        log::info!("Clock control REG: {} - should be {}", x, 0b0100_0011);
+        // -----------------------------------------------------------------------
+
+
+        // -----------------------------------------------------------------------
+        // GT Alarm
+        log::info!("Próba Zapisu do GT Alarm Register");
+        Max1329::set_adc_gt_alarm_register(1, &mut ecp5, max1329::adc::AlarmMode::Consecutive, 8, 1000);
+        log::info!("Potwierdzenie zapisania poprawnej wartości");
         let x = Max1329::read_adc_gt_alarm_register(1, &mut ecp5);
-        log::info!("MAIN GT ALARM {}", x);
-        core::assert_eq!(x, 4095);
+        log::info!("GT Alarm REG: {} - should be {}", x, 62440);
+        // 1000 jest ustawione jako wartosc testowa
+        // -----------------------------------------------------------------------
 
-        log::info!("MAIN jESZCZE RAZ ODCZYT CLOCK CONTROL");
-        let x = Max1329::read_clock_control_register(1, &mut ecp5);
-        //delay.delay_ms(100000 as u32);
-        log::info!("Clock control REG: {} - should be {}", x, 0b0110_0001);
-        core::assert_eq!(x, 0b01100001);
+        // -----------------------------------------------------------------------
+        // LT Alarm
+        log::info!("Próba Zapisu do LT Alarm Register");
+        Max1329::set_adc_lt_alarm_register(1, &mut ecp5, max1329::adc::AlarmMode::Consecutive, 8, 500);
+        log::info!("Potwierdzenie zapisania poprawnej wartości");
+        let x = Max1329::read_adc_lt_alarm_register(1, &mut ecp5);
+        log::info!("LT Alarm REG: {} - should be {}", x, 61940);
+        // 1000 jest ustawione jako wartosc testowa
+        // -----------------------------------------------------------------------
 
-
-        log::info!("MAIN ZAPIS DO INTERRUPT REGISTER");
-        ecp5.check_registers();
-        Max1329::set_interrupt_mask_register(1, &mut ecp5, 0xAABBCC);
-        //delay.delay_ms(100000 as u32);
-        log::info!("MAIN ODCZYT Z INTERRUPT REGISTER");
-        // delay.delay_ms(100000 as u32);
-        let x = Max1329::read_interrrupt_mask_register(1, &mut ecp5);
-        //delay.delay_ms(100000 as u32);
-        log::info!("main INT mask register {} {} {}", x[0], x[1], x[2]);
-        core::assert_eq!(x[2], 0xCC);
-        core::assert_eq!(x[1], 0xBB);
-        core::assert_eq!(x[0], 0xAA);
-
-        let x = Max1329::read_status_register(1, &mut ecp5);
-        log::info!("Status register {}", x);
-        //delay.delay_ms(100 as u32);
-         let x = Max1329::read_status_register(1, &mut ecp5);
-        log::info!("Status register drugi odczyt: {}", x);
-        //delay.delay_ms(100 as u32);
-        log::info!("Ustawienie PUMPa");
-
-
+        // -----------------------------------------------------------------------
+        // CPVM Control
         struct Variables {
             pub cpvm_reg: u8,
             pub reference: max1329::adc::RefConf,
@@ -211,36 +205,19 @@ mod app {
         };
 
         Max1329::set_cpvm_control_register(1, &mut ecp5, variables.cpvm_reg);
+        // -----------------------------------------------------------------------
 
         #[allow(dead_code)]
         fn test_dac(ecp: &mut ECP5){
-            log::info!("SET_DAC_CONTROL");
             Max1329::set_dac_control(1,  ecp,
                           max1329::dac::PowerDownConf::InOut,
                           max1329::dac::PowerDownConf::InOut,
                           max1329::dac::OpAmp::Disable,
                           max1329::dac::RefConf::Int2_5);
-            log::info!("SET_DACA_VALUE");
+
             Max1329::set_daca_value(1, ecp, 0b0000_0110_0000_0000);
             Max1329::set_dacb_value(1, ecp, 0b0000_1000_0000_0000);
 
-                    //delay.delay_ms(100 as u32);
-            log::info!("STATUS READ:");
-            let x = Max1329::read_status_register(1, ecp);
-            log::info!("Status register {}", x);
-
-
-            log::info!("DACA data READ");
-            //delay.delay_ms(100 as u32);
-            let x = Max1329::read_daca_value(1, ecp);
-            log::info!("DAC A value {}", x);
-            core::assert_eq!(x, 0b0000_0110_0000_0000);
-
-            log::info!("DACB data READ");
-            //delay.delay_ms(100 as u32);
-            let x = Max1329::read_dacb_value(1, ecp);
-            log::info!("DAC B value {}", x);
-            core::assert_eq!(x, 0b0000_1000_0000_0000);
         }
 
         #[cfg(feature = "ext_ref_burned")]
@@ -248,50 +225,29 @@ mod app {
 
         //    -------------------------:::::::  ADC TESTS  :::::::-------------------------
 
-        let x = Max1329::read_status_register(1, &mut ecp5);
-        log::info!("Status przed ADC {}", x);
+        // Do testow ustawiony odczyt napiecia DVDD w ogolnosci MSEL = 0 i wartosci 0 oraz 1 tak aby miec odczyt AIN1 - AGND oraz AIN2 - AGND
 
-        delay.delay_ms(100 as u32);
+        Max1329::set_interrupt_mask_register(1, &mut ecp5, 0b1110_1100_1111_1111_1111_1111); // unmask ADC done, GT, LT
 
-        Max1329::set_interrupt_mask_register(1, &mut ecp5, 0b1110_1111_1111_1111_1111_1111); // unmask ADC done
+        // -----------------------------------------------------------------------   
+        // Wlaczenie odpowiednich odczytow miedzy AIN1-AGND i AIN2-AGND, odczekiwanie na koniec konwersji i odczyt wartosci z rejestru 
+        // REFE = 1 wlacza internal reference
         Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, variables.reference);
-        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-
-
+        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
             log::info!("W8 for ADC");
         }
-
-        log::info!("Status po ADC {}", x);
-        let x = Max1329::read_adc_data_register(1, &mut ecp5);
-
-        log::info!("ADC value for DVDD {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
-
-        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
             log::info!("W8 for ADC");
         }
-        let x = Max1329::read_adc_data_register(1, &mut ecp5);
-        log::info!("ADC value for AVDD {}", x.0);    // Avdd / 4 (4 V / 4 = 1 V)
+        // let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        // -----------------------------------------------------------------------
 
-        log::info!("ADC Control {}", Max1329::read_adc_control_register(1, &mut ecp5));
-        log::info!("ADC Setup {}", Max1329::read_adc_setup_register(1, &mut ecp5));
-
-        log::info!("HW_REV {}", Max1329::read_apio_setup_register(1, &mut ecp5) & 0x7);
-
-        Max1329::set_dpio_control_register(1, &mut ecp5, 0xFFFF);
-        Max1329::set_dpio_setup_register(1, &mut ecp5, 0x00);
-
-        log::info!("DPIO SETUP {}", Max1329::read_dpio_setup_register(1, &mut ecp5));
-        let x = Max1329::read_dpio_control_register(1, &mut ecp5);
-        log::info!("DPIO CONTROL {} {}", x[0], x[1]);
-
-
-        /*
-            Check QSPI to ECP5 connection
-        */
-
+        Max1329::set_dpio_control_register(1, &mut ecp5, 0xFFFF); // Ustawienie DPIO jako output, zmiany wartosci trzeba wpisac do DP_LL
+        Max1329::set_dpio_setup_register(1, &mut ecp5, 0x00); // Ustawienie wewnetrznych pullopow i wlaczenie wszystkich tranzystorow na start
+        
         // if device0.init(&mut ecp5){
         //     telemetry0::spawn().unwrap();
         // }
@@ -309,8 +265,11 @@ mod app {
             i2c,
         };
 
+
+
         settings_update::spawn().unwrap();
         ethernet_link::spawn().unwrap();
+        telemetry0::spawn().unwrap();
 
         (shared, local, init::Monotonics(stm_sys_board.systick))
     }
@@ -322,7 +281,7 @@ mod app {
             //c.local.i2c.write_read(0b1001000 as u8, &[0], &mut data).unwrap();
             //let temp : u16 = ( (data[0] as u16) << 4) | ((data[1] as u16) >> 4);
             //log::info!("Temp: {}", (temp as f32) * 0.0625);
-
+            log::info!("Idle");
             match c.shared.network.lock(|net| net.update()) {
                 NetworkState::SettingsChanged => {
                     settings_update::spawn().unwrap()
@@ -330,11 +289,14 @@ mod app {
                 NetworkState::Updated => {}
                 NetworkState::NoChange => cortex_m::asm::wfi(),
             }
+
+
         }
     }
 
     #[task(priority = 1, shared=[network, ecp5, device0])]
     fn settings_update(c: settings_update::Context) {
+        log::info!("Settings Update");
         let settings_update::SharedResources{
             mut device0, mut ecp5, mut network
         } = c.shared;
@@ -350,9 +312,15 @@ mod app {
 
     #[task(priority = 1, shared=[network, device0])]
     fn telemetry0(mut c: telemetry0::Context) {
-        let (telemetry, telemetry_period) = c.shared.device0.lock(|device| (device.telemetry()));
+        log::info!("Telemetry");
+        let (mut telemetry, telemetry_period) = c.shared.device0.lock(|device| (device.telemetry()));
 
-        c.shared.network.lock(|net| net.telemetry.publish(DEVICE0_TELEMETRY_PREFIX, &telemetry));
+
+        c.shared.network.lock(|net| {
+            net.telemetry.publish(DEVICE0_TELEMETRY_PREFIX, &telemetry);
+            telemetry.set_adc_val(20);
+            net.telemetry.update();
+            net.telemetry.publish(DEVICE0_TELEMETRY_PREFIX, &telemetry)});
 
         telemetry0::Monotonic::spawn_after((telemetry_period as u64).secs())
             .unwrap();

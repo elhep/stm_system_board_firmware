@@ -68,7 +68,12 @@ impl TelemetryClient {
             .ok();
     }
 
-    /// Update the telemetry client
+    pub fn subscribe(&mut self, topic: &str){
+        let topic = topic.into();
+        self.mqtt.client.subscribe(topic, &[]).ok();
+    }
+
+    /// Update the telemetry clientud
     ///
     /// # Note
     /// This function is provided to force the underlying MQTT state machine to process incoming

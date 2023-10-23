@@ -168,6 +168,13 @@ impl Max1329 {
         ((data[0] as u16) << 8) | data[1] as u16
     }
 
+    pub fn read_adc_lt_alarm_register(slot: u8, ecp5: &mut ECP5) -> u16 {
+        let mut data: [u8; 2] = [0; 2];
+        let address = [READ | ADC_LT_AL];
+        ecp5.read_spi(slot, &address, &mut data);
+        ((data[0] as u16) << 8) | data[1] as u16
+    }
+
 
 
     pub fn set_adc_gt_alarm_register(slot: u8,

@@ -53,6 +53,12 @@ pub struct Telemetry{
     adc: u16
 }
 
+impl Telemetry{
+    pub fn set_adc_val(&mut self, val : u16){
+        self.adc = val;
+    }
+}
+
 pub struct SilpaDefault{}
 impl Variants for SilpaDefault{
     type VariantSettings = Settings;
