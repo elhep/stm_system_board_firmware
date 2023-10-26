@@ -19,7 +19,7 @@
 // TODO powercycle - pin PS_ON_N (in DIOT it's software issue)
 
 use fugit::ExtU64;
-use heapless::String;
+// use heapless::String;
 use stm_sys_board::{
     hardware::{
         self,
@@ -90,21 +90,26 @@ mod app {
             clock,
             env!("CARGO_BIN_NAME"),
             stm_sys_board.net.mac_address,
+            // option_env!("BROKER")
+            // .unwrap_or("127.0.0.1") // Ustawic adres brokera ("127.0.0.1")
+            // .parse()
+            // .unwrap(),
             option_env!("BROKER")
-                .unwrap_or("192.168.0.101") // Ustawic adres brokera ("127.0.0.1")
+                .unwrap_or("192.168.95.145") // Ustawic adres brokera ("127.0.0.1")
                 .parse()
                 .unwrap(),
             Settings::default(),
         );
 
-
+        let _prefix = stm_sys_board::net::get_device_prefix(env!("CARGO_BIN_NAME"), stm_sys_board.net.mac_address);
+        log::info!("Prefix: {}", _prefix);
+        
         let mut i2c = stm_sys_board.therm_i2c;
         let mut i2c_bp = stm_sys_board.cpcis_i2c;
         let device0 = Device0Type::new(5);
         let mut servmod = stm_sys_board.servmod;
         let mut array : [u8; 2] = [0x00, 0x00];
 
-        match network.miniconf.
         /*
             STM SYS BOARD - I2C temps sensors, EEPROM
         */

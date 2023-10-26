@@ -72,6 +72,7 @@ where
             NetworkProcessor::new(stack_manager.acquire_stack(), phy);
 
         let prefix = get_device_prefix(app, mac);
+        log::info!("Prefix 2 : {}", prefix);
 
         let miniconf = miniconf::MqttClient::new(
             stack_manager.acquire_stack(),
