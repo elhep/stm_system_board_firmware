@@ -58,7 +58,7 @@ impl Devices  <Settings, Telemetry> for SiLPA<SilpaAlternative>
 
     }
 
-    fn telemetry(&mut self) -> (Telemetry, u16) {
+    fn telemetry(&mut self, _ecp5: &mut ECP5) -> (Telemetry, u16) {
         (self.telemetry.finalize(), 10)
     }
     fn check_interrupt(&mut self, _ecp5: &mut ECP5){}

@@ -1,28 +1,42 @@
+use crate::hardware::{ServMod, self};
+use crate::hardware::devices::max1329::adc::AdcCode;
 use crate::hardware::devices::{Devices, Variants};
+use crate::net::telemetry;
 use super::SiLPA;
+use embedded_hal::digital::v2::OutputPin;
 use miniconf::Miniconf;
 use serde::Serialize;
 use crate::hardware::ecp5::ECP5;
 use crate::hardware::devices::max1329::{self, Max1329,adc, dac};
 
+use embedded_hal::blocking::i2c::{WriteRead, Read};
+
 #[derive(Copy, Clone)]
 pub struct TelemetryBuffer{
     adc: adc::AdcCode,
+    telemetry : Telemetry
 }
 
 impl Default for TelemetryBuffer {
     fn default() -> Self {
         Self {
             adc: adc::AdcCode(0),
+            telemetry: Telemetry::default()
         }
     }
 }
 
 impl TelemetryBuffer{
     pub fn finalize(self) -> Telemetry{
-        Telemetry{
-            adc: self.adc.0,
-        }
+        self.telemetry
+    }
+
+    pub fn set_adc1_field(&mut self, val : AdcCode){
+        self.telemetry.adc1 = val.0;
+    }
+
+    pub fn set_adc2_field(&mut self, val : AdcCode){
+        self.telemetry.adc2 = val.0;
     }
 }
 
@@ -48,14 +62,25 @@ impl Default for Settings{
 }
 
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Copy)]
 pub struct Telemetry{
-    adc: u16
+    adc1: u16,
+    adc2: u16
+}
+
+impl Default for Telemetry{
+    fn default() -> Self {
+        Self { adc1: 0, adc2: 0}
+    }
 }
 
 impl Telemetry{
-    pub fn set_adc_val(&mut self, val : u16){
-        self.adc = val;
+    pub fn set_adc1_field(&mut self, val : u16){
+        self.adc1 = val;
+    }
+
+    pub fn set_adc2_field(&mut self, val : u16){
+        self.adc2 = val;
     }
 }
 
@@ -127,21 +152,44 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         self.settings = new_settings;
     }
 
-    fn telemetry(&mut self) -> (Telemetry, u16) {
+    fn telemetry(&mut self, ecp5: &mut ECP5) -> (Telemetry, u16) {
+
+        // Odczyt ADC1
+        Max1329::set_adc_setup_register(1, ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
+            log::info!("W8 for ADC1 in Telemetry");
+        }
+        
+        let adc_val = Max1329::read_adc_data_register(self.slot, ecp5);
+        self.telemetry.set_adc1_field(adc_val);
+
+        Max1329::set_adc_setup_register(1, ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
+            log::info!("W8 for ADC2 in Telemetry");
+        } 
+
+        let adc_val = Max1329::read_adc_data_register(self.slot, ecp5);
+        self.telemetry.set_adc2_field(adc_val);
+        
         (self.telemetry.finalize(),
          self.settings.telemetry_period)
     }
 
     fn check_interrupt(&mut self, ecp5: &mut ECP5) {
+
+        // ODczyt inputow z FPGA //
+
+        // Sprawdzic co dany input robi //
+        // WYjscia outputow z lm sa zwarte wiec mamy or i to jest sugestia ze temp zostal przekroczona podwojnie
         let status : u32 = Max1329::read_status_register(self.slot, ecp5);
 
         if (status & max1329::GTA) != 0 {
             self.adc_gt_alarm(ecp5);
         }
 
-        if (status & max1329::LTA) != 0 {
-            self.adc_lt_alarm(ecp5);
-        }
+        // if (status & max1329::LTA) != 0 {
+        //     self.adc_lt_alarm(ecp5);
+        // }
 
         if (status & max1329::ADD) != 0 {
             self.telemetry.adc = Max1329::read_adc_data_register(self.slot, ecp5);
@@ -152,12 +200,36 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 impl SiLPA<SilpaDefault>
 {
     fn adc_gt_alarm(&self, _ecp5: &mut ECP5){
-
+        // Sprawdzam IO z FPGA bo tutaj bede mial info ze zostal przekroczony prog
     }
 
-    fn adc_lt_alarm(&self, _ecp5: &mut ECP5){
+    // fn adc_lt_alarm(&self, _ecp5: &mut ECP5){
 
+    // }
+
+    pub fn checkTemperature<T>(&self, slot: u8, I2C: &mut T, Servmod: &mut ServMod, channel : u8) -> f32
+        where 
+        T: Read,    
+    { 
+        let address : u8;
+        match channel{
+            1 => address = 0b1001_000,
+            2 => address = 0b1001_001,
+            _ => panic!("Incorrect LM75 Channel Address")     
+        };
+        Servmod.4.set_low().unwrap();
+        match hardware::lm75a::read_temp(I2C, address){ // Addr 0x48
+            Ok(temp) => {
+                            Servmod.4.set_high().unwrap();
+                            return temp;
+                            }
+            Err(_e) => panic!("I2C 1st LM75 on Sys_Board error!"),
+        };
+        
     }
+
+
+    
 }
 
 

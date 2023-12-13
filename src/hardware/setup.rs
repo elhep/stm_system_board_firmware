@@ -115,6 +115,11 @@ pub struct BoardDevices {
     pub servmod: ServMod,
 }
 
+pub struct BackPlaneI2C {
+    pub i2c : hal::i2c::I2c<hal::stm32::I2C4>,
+    pub servmod : ServMod,
+}
+
 pub struct MonBus {
     i2c: hal::i2c::I2c<hal::stm32::I2C2>,
     p_pres: MonBusTypes::P_Pres,
@@ -513,8 +518,8 @@ pub fn setup(
                 .pc5
                 .into_alternate_af11()
                 .set_speed(hal::gpio::Speed::VeryHigh);
-            let rmii_tx_en = gpiog
-                .pg11
+            let rmii_tx_en = gpiob
+                .pb11
                 .into_alternate_af11()
                 .set_speed(hal::gpio::Speed::VeryHigh);
             let rmii_txd0 = gpiog

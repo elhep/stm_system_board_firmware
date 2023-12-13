@@ -11,6 +11,12 @@ const I2C_ADDR: u8 = 0x50;
 // The MAC address is stored in the last 6 bytes of the 256 byte address space.
 const MAC_POINTER: u8 = 0xFA;
 
+// Po 8 bajtow na kazdy kanal, piersze 4 oznaczaj wartosc slope, kolejne 4 offset (Potrzebna konwersja na f32)
+const EEPROM_CHANNEL_0_CALIBARTION: u8 = 0x40; // Poczatek danych pierwszego kanalu
+const EEPROM_CHANNEL_1_CALIBARTION: u8 = 0x48; // Poczatek danych drugiego kanalu
+const EEPROM_DATA_LENGTH: u8 = 0x08; // Po osiem bajtow danych na kalibracje dla kazdego kanalu (4 bajty slope, 4 bajty offset)
+
+
 pub fn read_eui48<T>(i2c: &mut T, delay: &mut impl DelayMs<u8>) -> [u8; 6]
 where
     T: WriteRead,

@@ -291,7 +291,7 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
         self.settings = new_settings;
     }
 
-    fn telemetry(&mut self) -> (Telemetry, u16) {
+    fn telemetry(&mut self, _ecp5: &mut ECP5) -> (Telemetry, u16) {
             (self.telemetry.finalize(self.settings.get_gains(), hvsup_telemetry!($variant)),
              self.settings.telemetry_period)
 

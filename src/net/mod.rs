@@ -44,6 +44,7 @@ impl<S> NetworkUsers <S>
 where
     S: Miniconf + Clone,
 {
+            // net.telemetry.adc = 20;
     ///
     /// # Args
     /// * `stack` - The network stack that will be used to share with all network users.
@@ -72,7 +73,7 @@ where
             NetworkProcessor::new(stack_manager.acquire_stack(), phy);
 
         let prefix = get_device_prefix(app, mac);
-        log::info!("Prefix 2 : {}", prefix);
+        // log::info!("Prefix 2 : {}", prefix);
 
         let miniconf = miniconf::MqttClient::new(
             stack_manager.acquire_stack(),

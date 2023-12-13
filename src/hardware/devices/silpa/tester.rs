@@ -147,7 +147,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaTester>
         self.settings = new_settings;
     }
 
-    fn telemetry(&mut self) -> (Telemetry, u16) {
+    fn telemetry(&mut self, _ecp5: &mut ECP5) -> (Telemetry, u16) {
         (self.telemetry.finalize(),
          self.settings.telemetry_period)
     }

@@ -52,6 +52,7 @@ mod app {
     use stm_sys_board::hardware::devices::max1329;
     // use stm_sys_board::hardware::devices::max1329::adc;
     use stm_sys_board::hardware::devices::max1329::Max1329;
+    use stm_sys_board::hardware::setup::BackPlaneI2C;
     //use stm_sys_board::hardware::ecp5;
     use super::*;
 
@@ -64,6 +65,7 @@ mod app {
         ecp5:    ECP5,
         device0: Device0Type,
         exti: EXTI,
+        back_plane: BackPlaneI2C, 
     }
 
     #[local]
@@ -103,12 +105,16 @@ mod app {
 
         let _prefix = stm_sys_board::net::get_device_prefix(env!("CARGO_BIN_NAME"), stm_sys_board.net.mac_address);
         log::info!("Prefix: {}", _prefix);
+
+
         
         let mut i2c = stm_sys_board.therm_i2c;
         let mut i2c_bp = stm_sys_board.cpcis_i2c;
         let device0 = Device0Type::new(5);
         let mut servmod = stm_sys_board.servmod;
         let mut array : [u8; 2] = [0x00, 0x00];
+
+        
 
         /*
             STM SYS BOARD - I2C temps sensors, EEPROM
@@ -138,10 +144,12 @@ mod app {
         // };
         hardware::eeprom::test_eeprom(&mut i2c_bp, 0b1010_000).unwrap();
 
+        let back_plane = BackPlaneI2C{i2c: i2c_bp, servmod: servmod};
+
         log::info!("Silpa I2C test done");
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
             400000000,
-        ))  ;
+        ));
 
         log::info!("Odbieranie ID od ECP5");
         delay.delay_ms(1000 as u32);
@@ -262,6 +270,7 @@ mod app {
             ecp5,
             device0,
             exti,
+            back_plane
         };
 
 
@@ -286,7 +295,7 @@ mod app {
             //c.local.i2c.write_read(0b1001000 as u8, &[0], &mut data).unwrap();
             //let temp : u16 = ( (data[0] as u16) << 4) | ((data[1] as u16) >> 4);
             //log::info!("Temp: {}", (temp as f32) * 0.0625);
-            log::info!("Idle");
+            // log::info!("Idle");
             match c.shared.network.lock(|net| net.update()) {
                 NetworkState::SettingsChanged => {
                     settings_update::spawn().unwrap()
@@ -315,17 +324,23 @@ mod app {
         });
     }
 
-    #[task(priority = 1, shared=[network, device0])]
+    #[task(priority = 1, shared=[network, ecp5, device0, back_plane])]
     fn telemetry0(mut c: telemetry0::Context) {
         log::info!("Telemetry");
-        let (mut telemetry, telemetry_period) = c.shared.device0.lock(|device| (device.telemetry()));
 
+        let (_temperature_ch1, _temperature_ch2) = c.shared.back_plane.lock(|back_plane| c.shared.device0.lock(|device| (
+            (device.checkTemperature(2, &mut back_plane.i2c, &mut back_plane.servmod, 1),
+            device.checkTemperature(2, &mut back_plane.i2c, &mut back_plane.servmod, 2))
+        )));
+
+        let (telemetry, telemetry_period) = c.shared.ecp5.lock(|ecp5| c.shared.device0.lock(|device| 
+            (device.telemetry(ecp5)))
+        );
 
         c.shared.network.lock(|net| {
             net.telemetry.publish(DEVICE0_TELEMETRY_PREFIX, &telemetry);
-            telemetry.set_adc_val(20);
             net.telemetry.update();
-            net.telemetry.publish(DEVICE0_TELEMETRY_PREFIX, &telemetry)});
+        });
 
         telemetry0::Monotonic::spawn_after((telemetry_period as u64).secs())
             .unwrap();

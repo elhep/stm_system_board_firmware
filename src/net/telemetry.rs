@@ -68,10 +68,10 @@ impl TelemetryClient {
             .ok();
     }
 
-    pub fn subscribe(&mut self, topic: &str){
-        let topic = topic.into();
-        self.mqtt.client.subscribe(topic, &[]).ok();
-    }
+    // pub fn subscribe(&mut self, topic: &str){
+    //     let topic = topic.into();
+    //     self.mqtt.client.subscribe(topic, &[]).ok();
+    // }
 
     /// Update the telemetry clientud
     ///
@@ -80,7 +80,16 @@ impl TelemetryClient {
     /// and outgoing messages. Without this, the client will never connect to the broker. This
     /// should be called regularly.
     pub fn update(&mut self) {      //TODO check if can be delated
-        match self.mqtt.poll(|_client, _topic, _message, _properties| {}) {
+        match self.mqtt.poll(|_client, _topic, _message, _properties| {
+            match _topic {
+                "test" => {
+                    log::info!("Odebrana wiadomosc");
+                },
+                _ => log::info!("Brak tematu")
+            }
+        }) 
+        
+        {
             Err(minimq::Error::Network(
                 smoltcp_nal::NetworkError::NoIpAddress,
             )) => {}
