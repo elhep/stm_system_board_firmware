@@ -329,8 +329,8 @@ mod app {
         log::info!("Telemetry");
 
         let (_temperature_ch1, _temperature_ch2) = c.shared.back_plane.lock(|back_plane| c.shared.device0.lock(|device| (
-            (device.checkTemperature(2, &mut back_plane.i2c, &mut back_plane.servmod, 1),
-            device.checkTemperature(2, &mut back_plane.i2c, &mut back_plane.servmod, 2))
+            (device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 1),
+            device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 2))
         )));
 
         let (telemetry, telemetry_period) = c.shared.ecp5.lock(|ecp5| c.shared.device0.lock(|device| 

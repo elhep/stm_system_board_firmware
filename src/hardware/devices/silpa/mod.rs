@@ -9,7 +9,7 @@ pub struct SiLPA<U>
 where
     U: Variants,
 {
-    slot: u8,
+    pub slot: u8,
     pub settings: U::VariantSettings,
     pub telemetry: U::VariantTelemetryBuffer,
 }

@@ -207,7 +207,7 @@ impl SiLPA<SilpaDefault>
 
     // }
 
-    pub fn checkTemperature<T>(&self, slot: u8, I2C: &mut T, Servmod: &mut ServMod, channel : u8) -> f32
+    pub fn check_temperature<T>(&self, i2c: &mut T, servmod: &mut ServMod, channel : u8) -> f32
         where 
         T: Read,    
     { 
@@ -217,10 +217,33 @@ impl SiLPA<SilpaDefault>
             2 => address = 0b1001_001,
             _ => panic!("Incorrect LM75 Channel Address")     
         };
-        Servmod.4.set_low().unwrap();
-        match hardware::lm75a::read_temp(I2C, address){ // Addr 0x48
+        
+        match self.slot{
+            1 => servmod.0.set_low().unwrap(), 
+            2 => servmod.1.set_low().unwrap(),
+            3 => servmod.2.set_low().unwrap(),
+            4 => servmod.3.set_low().unwrap(),
+            5 => servmod.4.set_low().unwrap(),
+            6 => servmod.5.set_low().unwrap(),
+            7 => servmod.6.set_low().unwrap(),
+            8 => servmod.7.set_low().unwrap(),
+            _ => log::info!("Incorrect Slot Number")
+        };
+
+
+        match hardware::lm75a::read_temp(i2c, address){ // Addr 0x48
             Ok(temp) => {
-                            Servmod.4.set_high().unwrap();
+                            match self.slot{
+                                1 => servmod.0.set_high().unwrap(), 
+                                2 => servmod.1.set_high().unwrap(),
+                                3 => servmod.2.set_high().unwrap(),
+                                4 => servmod.3.set_high().unwrap(),
+                                5 => servmod.4.set_high().unwrap(),
+                                6 => servmod.5.set_high().unwrap(),
+                                7 => servmod.6.set_high().unwrap(),
+                                8 => servmod.7.set_high().unwrap(),
+                                _ => log::info!("Incorrect Slot Number")
+                            };
                             return temp;
                             }
             Err(_e) => panic!("I2C 1st LM75 on Sys_Board error!"),
