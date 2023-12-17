@@ -3,6 +3,13 @@ use embedded_hal::blocking::i2c::{WriteRead, Read};
 // 2 x LM75 on STM_SYS Board address
 const I2C_ADDR: [u8; 2] = [0x48 , 0x49];
 
+pub mod LM75_TEMPERATURE{
+    pub const MIN_TEMPERATURE : f32 = -128.0;
+    pub const MAX_TEMPERATURE : f32 = 128.0; //Max temperature plus accuracy
+    pub const TRESHOLD_CH1 : f32 = 80.0;
+    pub const TRESHOLD_CH2 : f32 = 80.0;
+}
+
 pub fn read_temp<T>(i2c: &mut T, dev_addr: u8) -> Result<f32, T::Error>
 where
     T: Read,

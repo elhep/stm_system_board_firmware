@@ -12,8 +12,8 @@ const I2C_ADDR: u8 = 0x50;
 const MAC_POINTER: u8 = 0xFA;
 
 // Po 8 bajtow na kazdy kanal, piersze 4 oznaczaj wartosc slope, kolejne 4 offset (Potrzebna konwersja na f32)
-const EEPROM_CHANNEL_0_CALIBARTION: u8 = 0x40; // Poczatek danych pierwszego kanalu
-const EEPROM_CHANNEL_1_CALIBARTION: u8 = 0x48; // Poczatek danych drugiego kanalu
+const EEPROM_CHANNEL_0_COEFFICIENTS: u8 = 0x40; // Poczatek danych pierwszego kanalu
+const EEPROM_CHANNEL_1_COEFFICIENTS: u8 = 0x48; // Poczatek danych drugiego kanalu
 const EEPROM_DATA_LENGTH: u8 = 0x08; // Po osiem bajtow danych na kalibracje dla kazdego kanalu (4 bajty slope, 4 bajty offset)
 
 
@@ -88,4 +88,52 @@ where
     }
     log::info!("Test data: {} {} {} {} {}", test_data[0], test_data[1], test_data[2], test_data[3], test_data[4]);
     Ok(())
+}
+
+pub fn read_detector_coefficients<T>(i2c: &mut T) -> (f32, f32, f32, f32)
+where
+    T: WriteRead,
+{
+    let mut channel_1_slope: f32;
+    let mut channel_1_intercept: f32;
+    let mut channel_2_slope: f32;
+    let mut channel_2_intercept: f32;
+
+    let mut received_coefficients : [u8; 16] = [0; 16];  
+
+    match i2c.write_read(I2C_ADDR, &[EEPROM_CHANNEL_0_COEFFICIENTS], &mut received_coefficients){
+        Ok(()) => {
+            channel_1_slope = ( 
+                                ((received_coefficients[0] as u32) << 24) |
+                                ((received_coefficients[1] as u32) << 16) |
+                                ((received_coefficients[2] as u32) << 8) |
+                                ((received_coefficients[3] as u32) << 0)
+                            ) as f32;
+            channel_1_intercept = ( 
+                                ((received_coefficients[4] as u32) << 24) |
+                                ((received_coefficients[5] as u32) << 16) |
+                                ((received_coefficients[6] as u32) << 8) |
+                                ((received_coefficients[7] as u32) << 0)
+                            ) as f32;    
+
+            channel_2_slope = ( 
+                                ((received_coefficients[8] as u32) << 24) |
+                                ((received_coefficients[9] as u32) << 16) |
+                                ((received_coefficients[10] as u32) << 8) |
+                                ((received_coefficients[11] as u32) << 0)
+                            ) as f32;
+            channel_2_intercept = ( 
+                                ((received_coefficients[12] as u32) << 24) |
+                                ((received_coefficients[13] as u32) << 16) |
+                                ((received_coefficients[14] as u32) << 8) |
+                                ((received_coefficients[15] as u32) << 0)
+                            ) as f32;     
+        }
+        Err(e) => {
+            panic!("I2C Error receiving coefficients")
+        }
+    }
+
+
+    (channel_1_slope, channel_1_intercept, channel_2_slope, channel_2_intercept)
 }

@@ -40,6 +40,8 @@ use stm_sys_board::net::settings::{Settings, Device0Type,
                                                DEVICE0_TELEMETRY_PREFIX,};
 use embedded_hal::blocking::delay::DelayMs;
 
+use hardware::lm75a::LM75_TEMPERATURE;
+
 
 //struct SysBoardTelemetry {
 //    temp: u16,
@@ -52,6 +54,7 @@ mod app {
     use stm_sys_board::hardware::devices::max1329;
     // use stm_sys_board::hardware::devices::max1329::adc;
     use stm_sys_board::hardware::devices::max1329::Max1329;
+    use stm_sys_board::hardware::eeprom::read_detector_coefficients;
     use stm_sys_board::hardware::setup::BackPlaneI2C;
     //use stm_sys_board::hardware::ecp5;
     use super::*;
@@ -140,11 +143,15 @@ mod app {
         // };
         // match hardware::lm75a::read_temp(&mut i2c_bp, 0b1001_001){
         //     Ok(temp) => log::info!("Temp 2: {}", temp),
-        //     Err(_e) => panic!("I2C 2nd LM75 on Sipla error!"),
+        //     Err(_e) => panic!("I2C 2n d LM75 on Sipla error!"),
         // };
         hardware::eeprom::test_eeprom(&mut i2c_bp, 0b1010_000).unwrap();
 
-        let back_plane = BackPlaneI2C{i2c: i2c_bp, servmod: servmod};
+        let mut detector_coefficients : [f32; 4] = [0.0; 4];
+        (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(&mut i2c_bp);
+
+        let back_plane = BackPlaneI2C{i2c: i2c_bp, servmod};
+
 
         log::info!("Silpa I2C test done");
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
@@ -328,10 +335,10 @@ mod app {
     fn telemetry0(mut c: telemetry0::Context) {
         log::info!("Telemetry");
 
-        let (_temperature_ch1, _temperature_ch2) = c.shared.back_plane.lock(|back_plane| c.shared.device0.lock(|device| (
-            (device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 1),
-            device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 2))
-        )));
+        // let (_temperature_ch1, _temperature_ch2) = c.shared.back_plane.lock(|back_plane| c.shared.device0.lock(|device| (
+        //     (device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 1),
+        //     device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 2))
+        // )));
 
         let (telemetry, telemetry_period) = c.shared.ecp5.lock(|ecp5| c.shared.device0.lock(|device| 
             (device.telemetry(ecp5)))
@@ -353,12 +360,31 @@ mod app {
         ethernet_link::Monotonic::spawn_after(1.secs()).unwrap();
     }
 
-    #[task(priority = 3, shared=[device0, ecp5])]
+    #[task(priority = 3, shared=[device0, ecp5, back_plane])]
     fn device0_check_interrupt(c: device0_check_interrupt::Context) {
+
         let device0_check_interrupt::SharedResources{
-            device0, ecp5,
+            device0, ecp5, back_plane
         } = c.shared;
-        (device0, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
+
+        
+        (back_plane, ecp5, device0).lock(|back_plane, ecp5, device|
+            (
+                if device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 1) > LM75_TEMPERATURE::TRESHOLD_CH1 {
+                    device.settings.channels_locked[0] = false;
+                },
+
+                if device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 2) > LM75_TEMPERATURE::TRESHOLD_CH2 {
+                    device.settings.channels_locked[0] = false;
+                },
+
+                device.check_interrupt(ecp5)
+            )
+
+        ); 
+
+        
+        // (device0, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
     }
 
     #[task(binds = EXTI15_10, priority = 4, local = [exti_pin0], shared = [exti])]

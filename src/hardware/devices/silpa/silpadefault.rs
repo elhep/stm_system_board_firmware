@@ -11,6 +11,10 @@ use crate::hardware::devices::max1329::{self, Max1329,adc, dac};
 
 use embedded_hal::blocking::i2c::{WriteRead, Read};
 
+pub mod ECP5_OUTPUTS{
+    pub const TOGGLE_CH1 : u8 = 0x01;
+    pub const TOGGLE_CH2 : u8 = 0x02;
+}
 #[derive(Copy, Clone)]
 pub struct TelemetryBuffer{
     adc: adc::AdcCode,
@@ -46,6 +50,7 @@ pub struct Settings{
     adc_lt_threshold: u16,  // max 0xFFF
     dacs_enable     : [bool; 2],
     dacs_value      : [u16; 2],  // max 0xFFF
+    pub channels_locked : [bool; 2],
     pub telemetry_period: u16,
 }
 
@@ -55,6 +60,7 @@ impl Default for Settings{
             adc_gt_threshold: 0xFFF,
             adc_lt_threshold: 0x000,
             dacs_enable     : [false, false],
+            channels_locked : [false, false],
             dacs_value      : [0x000, 0x000],
             telemetry_period: 10,
         }
@@ -84,6 +90,18 @@ impl Telemetry{
     }
 }
 
+pub mod ECP5_Interrupts{
+    pub const CHANNEL1_INACTIVE : u8 = 0x40;
+    pub const CHANNEL2_INACTIVE : u8 = 0x80;
+    pub const CHANNEL1_INPUT_BIT : u8 = 4;
+    pub const CHANNEL2_INPUT_BIT : u8 = 5;
+}
+
+pub mod ECP5_INPUTS{
+    pub const CHANNEL1 : u8 = 0x03;
+    pub const CHANNEL2 : u8 = 0x02;
+}
+
 pub struct SilpaDefault{}
 impl Variants for SilpaDefault{
     type VariantSettings = Settings;
@@ -96,6 +114,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
     fn init(&mut self, ecp5: &mut ECP5) -> bool {
         // TODO IO and switch control
         // Internal OSC, Disabled CLKIO out, ADC clock Divider = 1, Acquisition clocks 4 (G=1,2) or 8 (G=4, 8)
+
         Max1329::set_clock_control_register(self.slot, ecp5, 0b01000001);
         // Int active low, RST1 interrupt, charge-pump On 3V,
         // CP clock divider: 64 (57 kHz with internal OSC, suggested between 39k - 78kHz)
@@ -141,6 +160,18 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                                                       dac::RefConf::Ext1_0,);
         }
 
+        if self.settings.channels_locked != new_settings.channels_locked {
+            let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
+            if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL1) == 0{
+                self.activate_channel(ecp5, 1);
+            }
+
+            if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL2) == 0{
+                self.activate_channel(ecp5, 2);
+            }
+            // activate_channel();           
+        }
+
         if self.settings.dacs_value[0] != new_settings.dacs_value[0] {
             Max1329::set_daca_value(self.slot, ecp5, new_settings.dacs_value[0]);
         }
@@ -178,9 +209,26 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
     fn check_interrupt(&mut self, ecp5: &mut ECP5) {
 
         // ODczyt inputow z FPGA //
+        let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
+        ecp5.read_inputs(self.slot, &mut ecp5_inputs);
 
+        // Opis lini LVDS:
+        // - 4 - input, Kanal 1, '1' - input odciety, '0' - sygnal jest wzmacniany
+        // - 5 - input, Kanal 2, '1' - input odciety, '0' - sygnal jest wzmacniany
+        // - 6 - output - Kanal 1, '1' ustawienie na '1' resetuje uklad i dziala
+        // - 7 - output - Kanal 2, '1' ustawienie na '1' resetuje uklad i dziala
+        if (ecp5_inputs[0] & ECP5_Interrupts::CHANNEL1_INACTIVE == ECP5_Interrupts::CHANNEL1_INACTIVE) {
+            self.settings.channels_locked[0] = true;
+        }
+
+        if (ecp5_inputs[0] & ECP5_Interrupts::CHANNEL2_INACTIVE == ECP5_Interrupts::CHANNEL2_INACTIVE) {
+            self.settings.channels_locked[1] = true;
+        }
+        
+        // TODO zmapowanie inputow na odpowiednie piny z Silpy
         // Sprawdzic co dany input robi //
         // WYjscia outputow z lm sa zwarte wiec mamy or i to jest sugestia ze temp zostal przekroczona podwojnie
+
         let status : u32 = Max1329::read_status_register(self.slot, ecp5);
 
         if (status & max1329::GTA) != 0 {
@@ -251,7 +299,28 @@ impl SiLPA<SilpaDefault>
         
     }
 
-
+    pub fn activate_channel(&self, ecp5 : &mut ECP5, channel : u8){
+        match channel{
+            1 => {
+                // Dodac odczyt outputow i zrobic or z tym co jest tutaj
+                let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
+                ecp5.read_inputs(self.slot, &mut ecp5_inputs);
+                ecp5.write_outputs(self.slot, &[ecp5_inputs[0] | ECP5_OUTPUTS::TOGGLE_CH1]);
+                // Delay
+                ecp5.read_inputs(self.slot, &mut ecp5_inputs);
+                ecp5.write_outputs(self.slot, &[ecp5_inputs[0] | 0x00]);
+            },
+            2 => {
+                let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
+                ecp5.read_inputs(self.slot, &mut ecp5_inputs);
+                ecp5.write_outputs(self.slot, &[ecp5_inputs[0] | ECP5_OUTPUTS::TOGGLE_CH2]);
+                // Delay
+                ecp5.read_inputs(self.slot, &mut ecp5_inputs);
+                ecp5.write_outputs(self.slot, &[ecp5_inputs[0] | 0x00]);
+            }
+            _ => log::info!("Incorrect channel number"),
+        }
+    }
     
 }
 
