@@ -54,7 +54,7 @@ mod app {
     use stm_sys_board::hardware::devices::max1329;
     // use stm_sys_board::hardware::devices::max1329::adc;
     use stm_sys_board::hardware::devices::max1329::Max1329;
-    use stm_sys_board::hardware::eeprom::read_detector_coefficients;
+    use stm_sys_board::hardware::eeprom::{read_detector_coefficients, SiLPADetector};
     use stm_sys_board::hardware::setup::BackPlaneI2C;
     //use stm_sys_board::hardware::ecp5;
     use super::*;
@@ -149,9 +149,14 @@ mod app {
 
         let mut detector_coefficients : [f32; 4] = [0.0; 4];
         (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(&mut i2c_bp);
-
-        let back_plane = BackPlaneI2C{i2c: i2c_bp, servmod};
-
+        
+        let mut silpa_detector = hardware::eeprom::SiLPADetector::new(detector_coefficients[0],
+                                                                                detector_coefficients[1], 
+                                                                                detector_coefficients[2], 
+                                                                                detector_coefficients[3]);
+        
+        let mut back_plane = BackPlaneI2C{i2c: i2c_bp, servmod};
+        silpa_detector.set_coefficients(device0.slot, &mut back_plane.i2c, &mut back_plane.servmod);
 
         log::info!("Silpa I2C test done");
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(

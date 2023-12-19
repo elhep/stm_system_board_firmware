@@ -1,9 +1,11 @@
-use embedded_hal::blocking::{delay::DelayMs, i2c::{WriteRead, Write, Read}};
+use embedded_hal::{blocking::{delay::DelayMs, i2c::{WriteRead, Write, Read}}, digital::v2::OutputPin};
 use embedded_hal::prelude::_embedded_hal_blocking_delay_DelayUs;
 use stm32h7xx_hal::i2c::Error;
 use stm32h7xx_hal::i2c::I2c;
 use stm32h7xx_hal::device::I2C1;
 use crate::hardware::panic;
+
+use super::ServMod;
 
 // The EEPROM is a variant without address bits, so the 3 LSB of this word are "dont-cares".
 const I2C_ADDR: u8 = 0x50;
@@ -16,6 +18,51 @@ const EEPROM_CHANNEL_0_COEFFICIENTS: u8 = 0x40; // Poczatek danych pierwszego ka
 const EEPROM_CHANNEL_1_COEFFICIENTS: u8 = 0x48; // Poczatek danych drugiego kanalu
 const EEPROM_DATA_LENGTH: u8 = 0x08; // Po osiem bajtow danych na kalibracje dla kazdego kanalu (4 bajty slope, 4 bajty offset)
 
+pub struct SiLPADetector{
+    pub channel_1_slope: f32,
+    pub channel_1_intercept: f32,
+    pub channel_2_slope: f32,
+    pub channel_2_intercept: f32
+}
+
+impl SiLPADetector{
+    pub fn new(ch1_slope : f32, ch1_intercept : f32, ch2_slope : f32, ch2_intercept : f32) -> Self{
+        Self {  channel_1_slope: ch1_slope,
+                channel_1_intercept: ch1_intercept,
+                channel_2_slope: ch2_slope, 
+                channel_2_intercept: ch2_intercept}
+    }
+    
+    pub fn set_coefficients<T>(&mut self, slot : u8, i2c: &mut T, servmod: &mut ServMod)
+    where 
+        T: WriteRead,
+    {
+        match slot{
+            1 => servmod.0.set_low().unwrap(), 
+            2 => servmod.1.set_low().unwrap(),
+            3 => servmod.2.set_low().unwrap(),
+            4 => servmod.3.set_low().unwrap(),
+            5 => servmod.4.set_low().unwrap(),
+            6 => servmod.5.set_low().unwrap(),
+            7 => servmod.6.set_low().unwrap(),
+            8 => servmod.7.set_low().unwrap(),
+            _ => log::info!("Incorrect Slot Number")
+        };
+        (self.channel_1_slope, self.channel_1_intercept, self.channel_2_slope, self.channel_2_intercept) = read_detector_coefficients(i2c);
+        
+        match slot{
+            1 => servmod.0.set_high().unwrap(), 
+            2 => servmod.1.set_high().unwrap(),
+            3 => servmod.2.set_high().unwrap(),
+            4 => servmod.3.set_high().unwrap(),
+            5 => servmod.4.set_high().unwrap(),
+            6 => servmod.5.set_high().unwrap(),
+            7 => servmod.6.set_high().unwrap(),
+            8 => servmod.7.set_high().unwrap(),
+            _ => log::info!("Incorrect Slot Number")
+        };
+    }
+}
 
 pub fn read_eui48<T>(i2c: &mut T, delay: &mut impl DelayMs<u8>) -> [u8; 6]
 where
@@ -94,10 +141,10 @@ pub fn read_detector_coefficients<T>(i2c: &mut T) -> (f32, f32, f32, f32)
 where
     T: WriteRead,
 {
-    let mut channel_1_slope: f32;
-    let mut channel_1_intercept: f32;
-    let mut channel_2_slope: f32;
-    let mut channel_2_intercept: f32;
+    let channel_1_slope: f32;
+    let channel_1_intercept: f32;
+    let channel_2_slope: f32;
+    let channel_2_intercept: f32;
 
     let mut received_coefficients : [u8; 16] = [0; 16];  
 
