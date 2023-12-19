@@ -1,3 +1,4 @@
+use micromath::F32Ext;
 use crate::hardware::{ServMod, self};
 use crate::hardware::devices::max1329::adc::AdcCode;
 use crate::hardware::devices::{Devices, Variants};
@@ -9,8 +10,12 @@ use serde::Serialize;
 use crate::hardware::ecp5::ECP5;
 use crate::hardware::devices::max1329::{self, Max1329,adc, dac};
 
-use embedded_hal::blocking::i2c::{WriteRead, Read};
 
+use embedded_hal::blocking::i2c::{WriteRead, Read};
+pub mod AMPLIFIER_PARAMETERS{
+    pub const TOTAL_GAIN : f32 = 56.0; //Gain w dB
+    pub const DIVIDER_RATIO : f32 = 0.76; //Dzielnik 82 i 1k     
+}
 pub mod ECP5_OUTPUTS{
     pub const TOGGLE_CH1 : u8 = 0x01;
     pub const TOGGLE_CH2 : u8 = 0x02;
@@ -36,11 +41,16 @@ impl TelemetryBuffer{
     }
 
     pub fn set_adc1_field(&mut self, val : AdcCode){
-        self.telemetry.adc1 = val.0;
+        self.telemetry.adc1 = vrms_to_dbm_converter(bits_to_f32(val.0));
     }
 
     pub fn set_adc2_field(&mut self, val : AdcCode){
-        self.telemetry.adc2 = val.0;
+        self.telemetry.adc2 = vrms_to_dbm_converter(bits_to_f32(val.0));
+    }
+
+    pub fn set_input_power(&mut self){
+        self.telemetry.input_power1 = self.telemetry.adc1 - AMPLIFIER_PARAMETERS::TOTAL_GAIN;
+        self.telemetry.input_power2 = self.telemetry.adc2 - AMPLIFIER_PARAMETERS::TOTAL_GAIN;
     }
 }
 
@@ -70,24 +80,35 @@ impl Default for Settings{
 
 #[derive(Serialize, Clone, Copy)]
 pub struct Telemetry{
-    adc1: u16,
-    adc2: u16
+    adc1: f32,
+    adc2: f32,
+    input_power1: f32,
+    input_power2: f32
 }
 
 impl Default for Telemetry{
     fn default() -> Self {
-        Self { adc1: 0, adc2: 0}
+        Self {  adc1: 0.0,
+                adc2: 0.0,
+                input_power1 : 0.0,
+                input_power2 : 0.0}
     }
 }
 
 impl Telemetry{
     pub fn set_adc1_field(&mut self, val : u16){
-        self.adc1 = val;
+        self.adc1 = vrms_to_dbm_converter(bits_to_f32(val));
     }
 
     pub fn set_adc2_field(&mut self, val : u16){
-        self.adc2 = val;
+        self.adc2 = vrms_to_dbm_converter(bits_to_f32(val));
     }
+
+    pub fn set_input_power(&mut self){
+        self.input_power1 = self.adc1 - AMPLIFIER_PARAMETERS::TOTAL_GAIN;
+        self.input_power2 = self.adc2 - AMPLIFIER_PARAMETERS::TOTAL_GAIN;
+    }
+
 }
 
 pub mod ECP5_Interrupts{
@@ -201,6 +222,8 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 
         let adc_val = Max1329::read_adc_data_register(self.slot, ecp5);
         self.telemetry.set_adc2_field(adc_val);
+        
+        self.telemetry.set_input_power();
         
         (self.telemetry.finalize(),
          self.settings.telemetry_period)
@@ -322,6 +345,26 @@ impl SiLPA<SilpaDefault>
         }
     }
     
+}
+
+pub fn vrms_to_dbm_converter(vrms : f32) -> f32{
+    let dbm = 30.0 +  20.0 * f32::log10(vrms/(50.0).sqrt());
+    return dbm
+}
+
+pub fn bits_to_f32(val : u16) -> f32{
+    let adc_as_f32 : f32 = (val as f32)/4096.0 * 2.5;
+    return adc_as_f32
+}
+
+pub fn calculate_output_power(dbm : f32) -> f32{
+    let output_power = dbm + 22.0; // 22dB pochodzace z dzielnika 82 i 1k 
+    return output_power
+}
+
+pub fn calculate_input_power(output_dbm : f32) -> f32{
+    let input_power = output_dbm - AMPLIFIER_PARAMETERS::TOTAL_GAIN;
+    return input_power
 }
 
 
