@@ -1,3 +1,4 @@
+use heapless::sorted_linked_list::Max;
 use micromath::F32Ext;
 use crate::hardware::{ServMod, self};
 use crate::hardware::devices::max1329::adc::AdcCode;
@@ -14,7 +15,7 @@ use crate::hardware::devices::max1329::{self, Max1329,adc, dac};
 use embedded_hal::blocking::i2c::{WriteRead, Read};
 pub mod AMPLIFIER_PARAMETERS{
     pub const TOTAL_GAIN : f32 = 56.0; //Gain w dB
-    pub const DIVIDER_RATIO : f32 = 0.76; //Dzielnik 82 i 1k     
+    pub const DIVIDER_RATIO : f32 = 0.0; //Dzielnik 82 i 1k     
 }
 pub mod ECP5_OUTPUTS{
     pub const TOGGLE_CH1 : u8 = 0x01;
@@ -59,7 +60,7 @@ pub struct Settings{
     adc_gt_threshold: u16,  // max 0xFFF
     adc_lt_threshold: u16,  // max 0xFFF
     dacs_enable     : [bool; 2],
-    dacs_value      : [u16; 2],  // max 0xFFF
+    pub dacs_value      : [f32; 2],  // max 0xFFF
     pub channels_locked : [bool; 2],
     pub telemetry_period: u16,
 }
@@ -71,7 +72,7 @@ impl Default for Settings{
             adc_lt_threshold: 0x000,
             dacs_enable     : [false, false],
             channels_locked : [false, false],
-            dacs_value      : [0x000, 0x000],
+            dacs_value      : [0.0, 0.0],
             telemetry_period: 10,
         }
     }
@@ -182,7 +183,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         }
 
         if self.settings.channels_locked != new_settings.channels_locked {
-            let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
+            let ecp5_inputs : [u8; 2] = [0x00, 0x00];
             if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL1) == 0{
                 self.activate_channel(ecp5, 1);
             }
@@ -193,13 +194,13 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             // activate_channel();           
         }
 
-        if self.settings.dacs_value[0] != new_settings.dacs_value[0] {
-            Max1329::set_daca_value(self.slot, ecp5, new_settings.dacs_value[0]);
-        }
+        // if self.settings.dacs_value[0] != new_settings.dacs_value[0] {
+        //     Max1329::set_daca_value(self.slot, ecp5, new_settings.dacs_value[0]);
+        // }
 
-        if self.settings.dacs_value[1] != new_settings.dacs_value[1] {
-            Max1329::set_dacb_value(self.slot, ecp5, new_settings.dacs_value[1]);
-        }
+        // if self.settings.dacs_value[1] != new_settings.dacs_value[1] {
+        //     Max1329::set_dacb_value(self.slot, ecp5, new_settings.dacs_value[1]);
+        // }
 
         self.settings = new_settings;
     }
@@ -344,6 +345,24 @@ impl SiLPA<SilpaDefault>
             _ => log::info!("Incorrect channel number"),
         }
     }
+
+    pub fn calculate_dac_value(&mut self, slope : f32, intercept : f32, ptreshold : f32, channel : u8, ecp5: &mut ECP5){
+        let vin_detector = slope * (f32::sqrt(0.05 /f32::log10(ptreshold/10.0)) - intercept);
+        let bit_value : u16 = (vin_detector * 4095.0/ 2.5) as u16;   
+
+        match channel{
+            1 => {
+                Max1329::set_daca_value(self.slot, ecp5, bit_value);
+                self.settings.dacs_value[0] = ptreshold;
+            },
+            2 => {
+                Max1329::set_daca_value(self.slot, ecp5, bit_value);
+                self.settings.dacs_value[1] = ptreshold;
+            },
+            _ => log::info!("Incorrect channel nubmer"),  
+        }
+
+    }
     
 }
 
@@ -358,7 +377,7 @@ pub fn bits_to_f32(val : u16) -> f32{
 }
 
 pub fn calculate_output_power(dbm : f32) -> f32{
-    let output_power = dbm + 22.0; // 22dB pochodzace z dzielnika 82 i 1k 
+    let output_power = dbm + 26.0; // 26dB pochodzace z dzielnika 50 i 1k 
     return output_power
 }
 
@@ -366,5 +385,6 @@ pub fn calculate_input_power(output_dbm : f32) -> f32{
     let input_power = output_dbm - AMPLIFIER_PARAMETERS::TOTAL_GAIN;
     return input_power
 }
+
 
 

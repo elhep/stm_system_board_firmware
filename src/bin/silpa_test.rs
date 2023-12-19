@@ -68,7 +68,8 @@ mod app {
         ecp5:    ECP5,
         device0: Device0Type,
         exti: EXTI,
-        back_plane: BackPlaneI2C, 
+        back_plane: BackPlaneI2C,
+        silpa_detector: SiLPADetector, 
     }
 
     #[local]
@@ -282,7 +283,8 @@ mod app {
             ecp5,
             device0,
             exti,
-            back_plane
+            back_plane,
+            silpa_detector,
         };
 
 
@@ -320,18 +322,31 @@ mod app {
         }
     }
 
-    #[task(priority = 1, shared=[network, ecp5, device0])]
+    #[task(priority = 1, shared=[network, ecp5, device0, silpa_detector])]
     fn settings_update(c: settings_update::Context) {
         log::info!("Settings Update");
         let settings_update::SharedResources{
-            mut device0, mut ecp5, mut network
+            device0, 
+            mut ecp5, 
+            mut network,
+            silpa_detector,
         } = c.shared;
         let settings = network.lock(|net| *net.miniconf.settings());
 
         (ecp5).lock(|ecp5| {
             match settings.device0_settings() {
-                Some(dev_settings) => (device0).lock(|device| device.settings_update(ecp5, dev_settings)),
-            None => {},
+                Some(dev_settings) => {(device0, silpa_detector).lock(|device0, silpa_detector| (
+                    if device0.settings.dacs_value[0] != dev_settings.dacs_value[0] {
+                        device0.calculate_dac_value(silpa_detector.channel_1_slope, silpa_detector.channel_1_intercept, 20.0, 1, ecp5)
+                    },
+
+                    if device0.settings.dacs_value[1] != dev_settings.dacs_value[1] {
+                        device0.calculate_dac_value(silpa_detector.channel_1_slope, silpa_detector.channel_1_intercept, 20.0, 2, ecp5)
+                    },
+                    device0.settings_update(ecp5, dev_settings),
+                    
+                ))},
+                None => {((), (), ())},
             }
         });
     }
