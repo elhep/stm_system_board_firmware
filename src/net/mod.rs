@@ -19,7 +19,7 @@ pub type NetworkReference =
 
 /// The default MQTT broker IP address if unspecified.
 // TODO change value
-pub const DEFAULT_MQTT_BROKER: [u8; 4] = [10, 34, 16, 10];
+pub const DEFAULT_MQTT_BROKER: [u8; 4] = [192, 168, 95, 145];
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum UpdateState {

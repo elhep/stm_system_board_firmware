@@ -54,7 +54,7 @@ mod app {
     use stm_sys_board::hardware::devices::max1329;
     // use stm_sys_board::hardware::devices::max1329::adc;
     use stm_sys_board::hardware::devices::max1329::Max1329;
-    use stm_sys_board::hardware::eeprom::{read_detector_coefficients, SiLPADetector};
+    use stm_sys_board::hardware::eeprom::SiLPADetector;
     use stm_sys_board::hardware::setup::BackPlaneI2C;
     //use stm_sys_board::hardware::ecp5;
     use super::*;
@@ -148,9 +148,14 @@ mod app {
         // };
         hardware::eeprom::test_eeprom(&mut i2c_bp, 0b1010_000).unwrap();
 
-        let mut detector_coefficients : [f32; 4] = [0.0; 4];
-        (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(&mut i2c_bp);
-        
+        // let mut detector_coefficients : [f32; 4] = [0.0; 4];
+        log::info!("Poczate testu EEPROM");
+        log::info!("-------------------------");
+        let mut detector_coefficients : [f32; 4] = [1.2, 0.22, 1.31, 0.25];
+        // (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(&mut i2c_bp);
+        hardware::eeprom::test_example_coefficients(&mut i2c_bp, 0b1010_000, &mut detector_coefficients);
+        log::info!("-------------------------");
+        log::info!("Koniec testu EEPROM");
         let mut silpa_detector = hardware::eeprom::SiLPADetector::new(detector_coefficients[0],
                                                                                 detector_coefficients[1], 
                                                                                 detector_coefficients[2], 
@@ -294,10 +299,9 @@ mod app {
         };
 
 
-
+        telemetry0::spawn().unwrap();
         settings_update::spawn().unwrap();
         ethernet_link::spawn().unwrap();
-        telemetry0::spawn().unwrap();
 
         (shared, local, init::Monotonics(stm_sys_board.systick))
     }
@@ -382,7 +386,7 @@ mod app {
 
     #[task(priority = 3, shared=[device0, ecp5, back_plane])]
     fn device0_check_interrupt(c: device0_check_interrupt::Context) {
-
+        log::info!("Interrupt Check");
         let device0_check_interrupt::SharedResources{
             device0, ecp5, back_plane
         } = c.shared;
@@ -391,11 +395,11 @@ mod app {
         (back_plane, ecp5, device0).lock(|back_plane, ecp5, device|
             (
                 if device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 1) > LM75_TEMPERATURE::TRESHOLD_CH1 {
-                    device.settings.channels_locked[0] = false;
+                    device.settings.channels_locked[0] = true;
                 },
 
                 if device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 2) > LM75_TEMPERATURE::TRESHOLD_CH2 {
-                    device.settings.channels_locked[0] = false;
+                    device.settings.channels_locked[0] = true;
                 },
 
                 device.check_interrupt(ecp5)

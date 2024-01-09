@@ -19,21 +19,26 @@ PythonClient.on_message = on_message
 PythonClient.connect(Connect.MosquittoBroker, Connect.MosquittoPort, 60)
 
 print("Połączono")
+
+PythonClient.subscribe("Topic/subtopic1")
+PythonClient.subscribe("Topic/subtopic2")
+PythonClient.subscribe("Topic/subtopic3")
 print("Wysyłanie wiadomości")
 # PubRet = PythonClient.publish("PythonTest", "TestMessage")
 while(True):
-    r = random.randint(0, 100)
-    PythonClient.publish("testConnection", str(r))
-    print("{} V".format(r))
-    time.sleep(5)
+    # r = random.randint(200, 300)
+    # PythonClient.publish("Voltage", str(r))
+    # print("{} V".format(r))
 
-    r = random.randint(2, 20)
-    PythonClient.publish("Current", str(r))
-    print("{} A".format(r))
-    time.sleep(5)
+
+    # r = random.randint(2, 10)
+    # PythonClient.publish("Current", str(r))
+    # print("{} A".format(r))
+
     
-    r = random.randint(500, 700)
-    PythonClient.publish("Power", str(r))
-    print("{} W".format(r))
-    time.sleep(5)
-    # PythonClient.publish("test", str(r))
+    # r = random.randint(500, 550)
+    # PythonClient.publish("Power", str(r))
+    # print("{} W".format(r))
+
+    # time.sleep(10)
+    PythonClient.loop_forever()

@@ -42,11 +42,11 @@ impl TelemetryBuffer{
     }
 
     pub fn set_adc1_field(&mut self, val : AdcCode){
-        self.telemetry.adc1 = vrms_to_dbm_converter(bits_to_f32(val.0));
+        self.telemetry.adc1 = calculate_output_power(vrms_to_dbm_converter(bits_to_f32(val.0)));
     }
 
     pub fn set_adc2_field(&mut self, val : AdcCode){
-        self.telemetry.adc2 = vrms_to_dbm_converter(bits_to_f32(val.0));
+        self.telemetry.adc2 = calculate_output_power(vrms_to_dbm_converter(bits_to_f32(val.0)));
     }
 
     pub fn set_input_power(&mut self){
@@ -182,17 +182,16 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                                                       dac::RefConf::Ext1_0,);
         }
 
-        if self.settings.channels_locked != new_settings.channels_locked {
-            let ecp5_inputs : [u8; 2] = [0x00, 0x00];
-            if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL1) == 0{
-                self.activate_channel(ecp5, 1);
-            }
+        // if self.settings.channels_locked != new_settings.channels_locked {
+        //     let ecp5_inputs : [u8; 2] = [0x00, 0x00];
+        //     if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL1) == 0{
+        //         self.activate_channel(ecp5, 1);
+        //     }
 
-            if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL2) == 0{
-                self.activate_channel(ecp5, 2);
-            }
-            // activate_channel();           
-        }
+        //     if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL2) == 0{
+        //         self.activate_channel(ecp5, 2);
+        //     }         
+        // }
 
         // if self.settings.dacs_value[0] != new_settings.dacs_value[0] {
         //     Max1329::set_daca_value(self.slot, ecp5, new_settings.dacs_value[0]);
@@ -356,7 +355,7 @@ impl SiLPA<SilpaDefault>
                 self.settings.dacs_value[0] = ptreshold;
             },
             2 => {
-                Max1329::set_daca_value(self.slot, ecp5, bit_value);
+                Max1329::set_dacb_value(self.slot, ecp5, bit_value);
                 self.settings.dacs_value[1] = ptreshold;
             },
             _ => log::info!("Incorrect channel nubmer"),  
