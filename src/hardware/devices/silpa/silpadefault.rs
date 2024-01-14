@@ -182,18 +182,20 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                                                       dac::RefConf::Ext1_0,);
         }
 
-        // if self.settings.channels_locked != new_settings.channels_locked {
-        //     let ecp5_inputs : [u8; 2] = [0x00, 0x00];
-        //     if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL1) == 0{
-        //         self.activate_channel(ecp5, 1);
-        //     }
+        if self.settings.channels_locked != new_settings.channels_locked {
+            let ecp5_inputs : [u8; 2] = [0x00, 0x00];
+            if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL1) == 0{
+                self.activate_channel(ecp5, 1);
+            }
 
-        //     if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL2) == 0{
-        //         self.activate_channel(ecp5, 2);
-        //     }         
-        // }
+            if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL2) == 0{
+                self.activate_channel(ecp5, 2);
+            }         
+        }
 
         // if self.settings.dacs_value[0] != new_settings.dacs_value[0] {
+        //     let new_daca_value : u16;
+
         //     Max1329::set_daca_value(self.slot, ecp5, new_settings.dacs_value[0]);
         // }
 
@@ -207,24 +209,29 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
     fn telemetry(&mut self, ecp5: &mut ECP5) -> (Telemetry, u16) {
 
         // Odczyt ADC1
+        log::info!("Wewnatrz telemetry() ADC1");
         Max1329::set_adc_setup_register(1, ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
             log::info!("W8 for ADC1 in Telemetry");
         }
         
-        let adc_val = Max1329::read_adc_data_register(self.slot, ecp5);
+        let adc_val = Max1329::read_adc_data_register(1, ecp5);
+        log::info!("Wartosc z ADC1: {}", adc_val.0);
         self.telemetry.set_adc1_field(adc_val);
 
+        log::info!("Wewnatrz telemetry() ADC2");
         Max1329::set_adc_setup_register(1, ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
             log::info!("W8 for ADC2 in Telemetry");
         } 
 
-        let adc_val = Max1329::read_adc_data_register(self.slot, ecp5);
+        let adc_val = Max1329::read_adc_data_register(1, ecp5);
+        log::info!("Wartosc z ADC1: {}", adc_val.0);
         self.telemetry.set_adc2_field(adc_val);
         
         self.telemetry.set_input_power();
         
+        log::info!("Wewnatrz telemetry() Koniec");
         (self.telemetry.finalize(),
          self.settings.telemetry_period)
     }
@@ -347,7 +354,7 @@ impl SiLPA<SilpaDefault>
 
     pub fn calculate_dac_value(&mut self, slope : f32, intercept : f32, ptreshold : f32, channel : u8, ecp5: &mut ECP5){
         let vin_detector = slope * (f32::sqrt(0.05 /f32::log10(ptreshold/10.0)) - intercept);
-        let bit_value : u16 = (vin_detector * 4095.0/ 2.5) as u16;   
+        let bit_value : u16 = (vin_detector * 4095.0/ 2.5 - 26.0) as u16;  // 26 dB pochodzi z dzielnika 1k i 50 Ohm 
 
         match channel{
             1 => {

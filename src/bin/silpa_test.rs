@@ -149,9 +149,14 @@ mod app {
         hardware::eeprom::test_eeprom(&mut i2c_bp, 0b1010_000).unwrap();
 
         // let mut detector_coefficients : [f32; 4] = [0.0; 4];
-        log::info!("Poczate testu EEPROM");
+        log::info!("Poczatek testu EEPROM");
         log::info!("-------------------------");
         let mut detector_coefficients : [f32; 4] = [1.2, 0.22, 1.31, 0.25];
+        log::info!("Wpisywane wartości do eepromu:");
+        log::info!("ch1_slope: {}", detector_coefficients[0].to_bits());
+        log::info!("ch1_intercept: {}", detector_coefficients[1].to_bits());
+        log::info!("ch2_slope: {}", detector_coefficients[2].to_bits());
+        log::info!("ch2_intercept: {}", detector_coefficients[3].to_bits());
         // (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(&mut i2c_bp);
         hardware::eeprom::test_example_coefficients(&mut i2c_bp, 0b1010_000, &mut detector_coefficients);
         log::info!("-------------------------");
@@ -300,7 +305,7 @@ mod app {
 
 
         telemetry0::spawn().unwrap();
-        settings_update::spawn().unwrap();
+        // settings_update::spawn().unwrap();
         ethernet_link::spawn().unwrap();
 
         (shared, local, init::Monotonics(stm_sys_board.systick))
@@ -328,7 +333,7 @@ mod app {
 
     #[task(priority = 1, shared=[network, ecp5, device0, silpa_detector])]
     fn settings_update(c: settings_update::Context) {
-        log::info!("Settings Update");
+        log::info!("----------- Settings Update --------------");
         let settings_update::SharedResources{
             device0, 
             mut ecp5, 
@@ -341,11 +346,11 @@ mod app {
             match settings.device0_settings() {
                 Some(dev_settings) => {(device0, silpa_detector).lock(|device0, silpa_detector| (
                     if device0.settings.dacs_value[0] != dev_settings.dacs_value[0] {
-                        device0.calculate_dac_value(silpa_detector.channel_1_slope, silpa_detector.channel_1_intercept, 20.0, 1, ecp5)
+                        device0.calculate_dac_value(silpa_detector.channel_1_slope, silpa_detector.channel_1_intercept, dev_settings.dacs_value[0], 1, ecp5)
                     },
 
                     if device0.settings.dacs_value[1] != dev_settings.dacs_value[1] {
-                        device0.calculate_dac_value(silpa_detector.channel_1_slope, silpa_detector.channel_1_intercept, 20.0, 2, ecp5)
+                        device0.calculate_dac_value(silpa_detector.channel_1_slope, silpa_detector.channel_1_intercept, dev_settings.dacs_value[1], 2, ecp5)
                     },
                     device0.settings_update(ecp5, dev_settings),
                     
@@ -357,7 +362,7 @@ mod app {
 
     #[task(priority = 1, shared=[network, ecp5, device0, back_plane])]
     fn telemetry0(mut c: telemetry0::Context) {
-        log::info!("Telemetry");
+        log::info!("----------- Telemetry --------------");
 
         // let (_temperature_ch1, _temperature_ch2) = c.shared.back_plane.lock(|back_plane| c.shared.device0.lock(|device| (
         //     (device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 1),
@@ -386,7 +391,7 @@ mod app {
 
     #[task(priority = 3, shared=[device0, ecp5, back_plane])]
     fn device0_check_interrupt(c: device0_check_interrupt::Context) {
-        log::info!("Interrupt Check");
+        log::info!("------------ Interrupt Check --------------");
         let device0_check_interrupt::SharedResources{
             device0, ecp5, back_plane
         } = c.shared;
@@ -399,7 +404,7 @@ mod app {
                 },
 
                 if device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 2) > LM75_TEMPERATURE::TRESHOLD_CH2 {
-                    device.settings.channels_locked[0] = true;
+                    device.settings.channels_locked[1] = true;
                 },
 
                 device.check_interrupt(ecp5)

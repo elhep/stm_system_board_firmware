@@ -224,8 +224,9 @@ where
     let mut detector_coefficients : [f32; 4] = [0.0; 4];
     (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(i2c);
 
-    log::info!("Przykładowe wartości parametrów do testów: {} {} {} {}", data[0].to_bits() as u32, data[1].to_bits() as u32, data[2].to_bits() as u32, data[3].to_bits() as u32);
-    log::info!("Odczytane wartości z testów: {} {} {} {}", detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]);
+    log::info!("Przykładowe wartości parametrów do testów: {} {} {} {}",    data[0].to_bits(), data[1].to_bits(), data[2].to_bits(), data[3].to_bits());
+    log::info!("Odczytane wartości z eepromu:              {} {} {} {}",    detector_coefficients[0].to_bits(), detector_coefficients[1].to_bits(), 
+                                                                            detector_coefficients[2].to_bits(), detector_coefficients[3].to_bits());
         
     
 
