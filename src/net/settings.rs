@@ -1,15 +1,15 @@
  use miniconf::Miniconf;
  //use heapless::String;
- use crate::hardware::devices::silpa::{SiLPA, silpadefault::{self, SilpaDefault}};
- use crate::hardware::devices::nucleo_tester::green::{self, Green};
- use crate::hardware::devices::nucleo_tester::yellow::{self, Yellow};
- use crate::hardware::devices::nucleo_tester::red::{self, Red};
- use crate::hardware::devices::hvsup_isol::{HVSUP_ISOL, hvsuppospos::{self, HvSupPosPos},
+//  use crate::hardware::devices::silpa::{SiLPA, silpadefault::{self, SilpaDefault}};
+//  use crate::hardware::devices::nucleo_tester::green::{self, Green};
+//  use crate::hardware::devices::nucleo_tester::yellow::{self, Yellow};
+//  use crate::hardware::devices::nucleo_tester::red::{self, Red};
+ use crate::hardware::devices::hvsup_isol::{HvSupIsol, hvsuppospos::{self, HvSupPosPos},
                                                         hvsupnegneg::{self, HvSupNegNeg},
                                                         hvsupposneg::{self, HvSupPosNeg},
                                                         hvsupnegpos::{self, HvSupNegPos},};
  use crate::hardware::devices::EmptySlot;
- use crate::hardware::devices::nucleo_tester::{Nucleo};
+//  use crate::hardware::devices::nucleo_tester::{Nucleo};
  use crate::hardware::hal;
 
  macro_rules! settings {
@@ -37,31 +37,31 @@
  }
 
  macro_rules! device_type {
- (Green) => {
-      paste::paste! {
-           Nucleo<Green, hal::gpio::gpiob::PB0<hal::gpio::Output<hal::gpio::PushPull>>>
-      }
-  };
- (Yellow) => {
-      paste::paste! {
-           Nucleo<Yellow, hal::gpio::gpioe::PE1<hal::gpio::Output<hal::gpio::PushPull>>>
-      }
-  };
- (Red) => {
-      paste::paste! {
-           Nucleo<Red, hal::gpio::gpiob::PB14<hal::gpio::Output<hal::gpio::PushPull>>>
-      }
- };
- (SilpaDefault) => {
-      paste::paste! {
-           SiLPA<SilpaDefault>
-      }
- };
-  (SilpaAlternative) => {
-      paste::paste! {
-           SiLPA<SilpaAlternative>
-      }
- };
+//  (Green) => {
+//       paste::paste! {
+//            Nucleo<Green, hal::gpio::gpiob::PB0<hal::gpio::Output<hal::gpio::PushPull>>>
+//       }
+//   };
+//  (Yellow) => {
+//       paste::paste! {
+//            Nucleo<Yellow, hal::gpio::gpioe::PE1<hal::gpio::Output<hal::gpio::PushPull>>>
+//       }
+//   };
+//  (Red) => {
+//       paste::paste! {
+//            Nucleo<Red, hal::gpio::gpiob::PB14<hal::gpio::Output<hal::gpio::PushPull>>>
+//       }
+//  };
+//  (SilpaDefault) => {
+//       paste::paste! {
+//            SiLPA<SilpaDefault>
+//       }
+//  };
+//   (SilpaAlternative) => {
+//       paste::paste! {
+//            SiLPA<SilpaAlternative>
+//       }
+//  };
   (EmptySlot) => {
       paste::paste! {
            EmptySlot
@@ -69,22 +69,22 @@
  };
    (HvSupPosPos) => {
       paste::paste! {
-           HVSUP_ISOL<HvSupPosPos>
+           HvSupPosPos
       }
    };
    (HvSupPosNeg) => {
       paste::paste! {
-           HVSUP_ISOL<HvSupPosNeg>
+           HvSupPosNeg
       }
    };
    (HvSupNegPos) => {
       paste::paste! {
-           HVSUP_ISOL<HvSupNegPos>
+           HvSupNegPos
       }
    };
    (HvSupNegNeg) => {
       paste::paste! {
-           HVSUP_ISOL<HvSupNegNeg>
+           HvSupNegNeg
       }
    };
  }
@@ -178,6 +178,6 @@
  ///     - SilpaDefault - work in progress
 
 devices_list!(
-     HvSupPosNeg,HvSupPosPos,HvSupPosPos,SilpaDefault,HvSupNegNeg,HvSupNegPos,HvSupPosNeg,HvSupPosPos
+     HvSupPosNeg,HvSupPosPos,HvSupPosPos,EmptySlot,HvSupNegNeg,HvSupNegPos,HvSupPosNeg,HvSupPosPos
 );
 

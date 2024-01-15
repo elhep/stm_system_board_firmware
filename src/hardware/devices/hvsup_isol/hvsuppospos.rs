@@ -1,19 +1,34 @@
-use super::{OutputVariant, HVSUP_ISOL};
-use crate::{hvsup_telemetry, hvsup_devices_trait};
-use crate::hardware::ecp5::ECP5;
-use crate::hardware::devices::{Variants, Devices};
-use crate::hardware::devices::max1329::{self, Max1329, dac};
-use crate::hardware::devices::max1329::adc::{self, AdcCode};
+
+use crate::hardware::{setup::BusReference, SystemTimer};
+use core::ops::{Deref, DerefMut};
+use super::{HvSupIsol, OutputVariant};
 
 pub type Settings = super::Settings;
 pub type Telemetry = super::Telemetry;
-pub type TelemetryBuffer = super::TelemetryBuffer;
 
-pub struct HvSupPosPos{}
-impl Variants for HvSupPosPos{
-    type VariantSettings = Settings;
-    type VariantTelemetry = Telemetry;
-    type VariantTelemetryBuffer = TelemetryBuffer;
+pub struct HvSupPosPos(HvSupIsol);
+
+impl HvSupPosPos {
+    pub fn new(slot_number: u8, bus: BusReference) -> HvSupPosPos {
+        HvSupPosPos(HvSupIsol::new(
+            slot_number,
+            bus,
+            OutputVariant::Positive,
+            OutputVariant::Positive,
+        ))
+    }
 }
 
-hvsup_devices_trait!(HvSupPosPos);
+impl Deref for HvSupPosPos {
+    type Target = HvSupIsol;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for HvSupPosPos {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}

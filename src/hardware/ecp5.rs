@@ -234,6 +234,12 @@ impl ECP5 {
         self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INT_MSK, data);
     }
 
+    pub fn write_clear_interrupts(&mut self,
+                slot_number: u8,
+                data: &[u8]) {
+        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INT_CL, data);
+    }
+
     pub fn read_interrupts_mask(&mut self,
                     slot_number: u8,
                     data: &mut [u8]){

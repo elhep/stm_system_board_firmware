@@ -1,367 +1,422 @@
-use crate::hardware::devices::Variants;
+use crate::hardware::devices::hvsup_isol::max_controller::Coefs;
+use crate::hardware::devices::Devices;
+use crate::hardware::setup::BusReference;
+use crate::hardware::{ecp5, SystemTimer};
 use miniconf::Miniconf;
-use crate::hardware::devices::max1329::adc::{self, AdcCode};
 use serde::Serialize;
 
-pub mod hvsuppospos;
+use self::board_controller::{BoardController, IoPin};
+use self::max_controller::{Channel, MaxController};
+use mono_clock::embedded_time::duration::Milliseconds;
+
+pub mod board_controller;
+pub mod max_controller;
+pub mod timer;
+
 pub mod hvsupnegneg;
-pub mod hvsupposneg;
 pub mod hvsupnegpos;
+pub mod hvsupposneg;
+pub mod hvsuppospos;
 
+// New arch - https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=c8d62c0eb8ca0491012db151d96df473
 
-#[derive(Copy, Clone)]
-pub struct TelemetryBuffer{
-    /// The latest input samples of AIN1 on both MAX( U_MEAS CH1 / U_MEAS CH2).
-    u_meas: [AdcCode; 2],
-    /// The latest input samples
-    /// of AIN2 on both MAX( I_MEAS CH1 / I_MEAS CH2).
-    i_meas: [AdcCode; 2],
-    /// Current state of ADCs input Multiplexers (MAX1 / MAX2).
-    current_meas: [adc::Mux; 2],
-}
+#[derive(Serialize, Default)]
+pub struct TelemetryBuffer {}
 
-impl Default for TelemetryBuffer{
-    fn default() -> Self {
-        Self {
-            u_meas: [AdcCode(0), AdcCode(0)],
-            i_meas: [AdcCode(0), AdcCode(0)],
-            current_meas: [adc::Mux::AIN1_AGND, adc::Mux::AIN1_AGND],
-        }
-    }
-}
-
-
-impl TelemetryBuffer{
-    /// Convert ADC code to Si-unit for telemetry reporting
-    ///
-    /// # Args
-    /// * `outputs_variant` - OutputVariant of both channels (based on PCB Variant)
-    ///
-    /// # Returns
-    /// The finalized telemetry structure that can be serialized and reported.
-    pub fn finalize(self, output_variants: [OutputVariant; 2]) -> Telemetry{
-        Telemetry {
-            channels: [HvChannelTelemetry::new(output_variants[0], self.u_meas[0], self.i_meas[0]),
-                       HvChannelTelemetry::new(output_variants[1], self.u_meas[1], self.i_meas[1])]
-        }
-    }
-}
-
-
-#[derive(Serialize)]
+#[derive(Serialize, Default)]
 pub struct Telemetry {
     channels: [HvChannelTelemetry; 2],
+    temp: f32,
+    is_calibration_on: bool,
 }
 
-#[derive(Serialize)]
-pub struct HvChannelTelemetry{
-    voltage_v: f32,
-    voltage_b: u16,
-    current_a: f32,
-    current_b: u16
-}
-
-impl HvChannelTelemetry{
-    pub fn new(output_variant: OutputVariant, u_meas: AdcCode, i_meas: AdcCode) -> Self {
-        let voltage = u_meas.voltage(adc::Gain::G1, 2.5) * 600.0;
-        let current = i_meas.voltage(adc::Gain::G1, 2.5) * 0.000004;
-        match output_variant{
-           OutputVariant::Positive => {
-               HvChannelTelemetry {
-                   voltage_v: voltage,
-                   voltage_b: u_meas.0,
-                   current_a: current,
-                   current_b: i_meas.0
-               }
-           }
-           OutputVariant::Negative => {
-               HvChannelTelemetry {
-                   voltage_v: -voltage,
-                   voltage_b: u_meas.0,
-                   current_a: -current,
-                   current_b: i_meas.0
-                }
-            }
-        }
-    }
+#[derive(Serialize, Default)]
+pub struct HvChannelTelemetry {
+    voltage: f32,
+    current: f32,
 }
 
 #[derive(Clone, Copy, Debug, Miniconf, PartialEq)]
-pub struct Settings{
+pub struct Settings {
     channels_settings: [HvChannelSettings; 2],
+    interlock_mode: bool,
+    calibrate_mode: bool,
+    calibrate_value: f32,
+    accept_calibrate_value: bool,
+    hv_enable: bool,
+    a_to_b_delay: f32,
+    interlock_delay: f32,
     pub telemetry_period: u16,
 }
 
-impl Default for Settings{
+impl Default for Settings {
     fn default() -> Self {
         Self {
             channels_settings: [HvChannelSettings::default(); 2],
+            interlock_mode: true,
+            calibrate_mode: false,
+            calibrate_value: 0.0,
+            accept_calibrate_value: false,
+            hv_enable: false,
+            a_to_b_delay: 0.0,
+            interlock_delay: 0.0,
             telemetry_period: 250,
         }
     }
 }
 
-impl Settings{
-    // pub fn get_gains(self) -> [adc::Gain; 4] {
-    //     [self.channels_settings[0].u_gain, self.channels_settings[0].i_gain,
-    //      self.channels_settings[1].u_gain, self.channels_settings[1].i_gain]
-    // }
-}
-
 #[derive(Clone, Copy, Debug, Miniconf, PartialEq)]
-pub struct HvChannelSettings{
+pub struct HvChannelSettings {
     enable: bool,
     u_ctrl: u16,
+    u_step: f32,
     i_ctrl: u16,
 }
 
-impl Default for HvChannelSettings{
-    fn default() -> Self{
-        Self{
+impl Default for HvChannelSettings {
+    fn default() -> Self {
+        Self {
             enable: false,
             u_ctrl: 0,
+            u_step: 0.0,
             i_ctrl: 0,
         }
     }
 }
 
-
-pub struct HVSUP_ISOL<T: Variants>
-{
-    slot: u8,
-    pub settings: T::VariantSettings,
-    pub telemetry: T::VariantTelemetryBuffer,
-}
-
-impl <T> HVSUP_ISOL <T>
-where
-    T: Variants,
-{
-    pub fn new(
-        slot_number : u8,
-    ) -> Self
-    {
-        Self{
-            slot: slot_number,
-            settings: T::VariantSettings::default(),
-            telemetry: T::VariantTelemetryBuffer::default(),
-        }
-    }
-}
-
-
-
-#[macro_export]
-macro_rules! hvsup_telemetry {
-    (HvSupPosPos) => {
-        paste::paste!{
-            [OutputVariant::Positive, OutputVariant::Positive]
-        }
-    };
-    (HvSupNegNeg) => {
-        paste::paste!{
-            [OutputVariant::Negative, OutputVariant::Negative]
-        }
-    };
-    (HvSupPosNeg) => {
-        paste::paste!{
-            [OutputVariant::Positive, OutputVariant::Negative]
-        }
-    };
-    (HvSupNegPos) => {
-        paste::paste!{
-            [OutputVariant::Negative, OutputVariant::Positive]
-        }
-    };
-}
-
-#[macro_export]
- macro_rules! hvsup_devices_trait {
-    ($variant:ident) => {
-        paste::paste!{
-
-impl HVSUP_ISOL<$variant>
-{
-    /// Read new ADC sample and change state of the MUX
-    fn read_adc_data(&mut self, ecp5: &mut ECP5, max_nr: usize){
-        if self.telemetry.current_meas[max_nr] == adc::Mux::AIN1_AGND{
-            self.telemetry.u_meas[max_nr] = Max1329::read_adc_data_register(self.slot, ecp5);
-            Max1329::set_adc_setup_direct(self.slot, ecp5,
-                                            adc::Mux::AIN2_AGND,
-                                            adc::Gain::G1,
-                                            adc::Bip::Unipolar);
-            self.telemetry.current_meas[max_nr] = adc::Mux::AIN2_AGND;
-        } else {
-            self.telemetry.i_meas[max_nr] = Max1329::read_adc_data_register(self.slot, ecp5);
-            Max1329::set_adc_setup_direct(self.slot, ecp5,
-                                            adc::Mux::AIN1_AGND,
-                                            adc::Gain::G1,
-                                            adc::Bip::Unipolar);
-            self.telemetry.current_meas[max_nr] = adc::Mux::AIN1_AGND;
-        }
-    }
-
-    /// Switch HV Output On/Off.
-    /// Change CS POL for correct MAX1329 before use switch HV output function!
-    /// True - switch ON
-    /// False - switch OFF
-    fn switch_hv_output(&self, ecp5: &mut ECP5, state: bool){
-        if state {
-            ecp5.write_outputs(1, &[0, 0b0011_0000]); // enable hv
-            log::info!("IO switch ON");
-            //Max1329::set_dpio_setup_register(self.slot, ecp5, 0xF0);
-        } else {
-            ecp5.write_outputs(1, &[0, 0b0000_0000]); // enable hv
-            log::info!("IO switch OFF");
-            //Max1329::set_dpio_setup_register(self.slot, ecp5, 0xFF);
-        }
-    }
-}
-
-impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
-    fn init(&mut self, ecp5: &mut ECP5) -> bool {
-        // First device APIO (SPI extender).
-        // TODO check APIO SETUP during tests - should work without changes
-        Max1329::set_apio_control_register(self.slot, ecp5, u8::MAX);
-        for i in 0..2{
-            // Change CS pol for second Max
-            if i == 1{
-                ecp5.set_spi_cs_pol(self.slot, 1);
-            }
-
-            // Internal OSC, Disabled CLKIO out, ADC clock Divider = 1, Acquisition clocks 4 (G=1,2) or 8 (G=4, 8)
-            Max1329::set_clock_control_register(self.slot, ecp5, 0b01000001);
-            // Int active high (because of MOSFET), RST1 interrupt, charge-pump On 3V,
-            // CP clock divider: 64 (57 kHz with internal OSC, suggested between 39k - 78kHz)
-            Max1329::set_cpvm_control_register(self.slot, ecp5, 0b11000101);
-            // Set pullup for all inputs and logic high for outputs (low would enable HV)
-            self.switch_hv_output(ecp5, false);
-            // DPIO1 output, DPIO2-4 input.
-            Max1329::set_dpio_control_register(self.slot, ecp5, 0x000F);
-            // Enable ADC Data Ready interrupt
-            Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::ADD));
-
-            // Enable DACs
-            Max1329::set_dac_control(self.slot, ecp5, dac::PowerDownConf::InToOut,
-                                                      dac::PowerDownConf::InToOut,
-                                                      dac::OpAmp::Disable,
-                                                      dac::RefConf::Ext1_0);
-
-            // ADC Master Clock Cycles - 32 - For Internal OSC -> 115,2 ksps
-            // Reference: disable REFADJ and internal REF ADC/DAC buffers (AJD -> REFADC, ADJ -> REFDAC),
-            // apply external references directly at REFADC and REFDAC pins
-            Max1329::set_adc_control_register(self.slot, ecp5, adc::AutoConversion::Clk32,
-                                                               adc::PowerDownConf::Normal,
-                                                               adc::RefConf::ExtBuffOff,);
-            // Default Setup ADC input: Ain1, ADC gain 1, Unipolar mode (Default MUX SEL is 0)
-            //TODO configure ADC
-            // Max1329::set_adc_setup_direct()
-
-
-            // Change CS pol for first Max again (default for idle)
-            if i == 1{
-                ecp5.set_spi_cs_pol(self.slot, 0);
-            }
-        }
-
-        true
-    }
-
-    fn settings_update(&mut self, ecp5: &mut ECP5, new_settings: Settings) -> () {
-
-        for i in 0..2{
-            // Change CS pol for second Max
-            if i == 1{
-                ecp5.set_spi_cs_pol(1, 1); // TODO change to self.slot
-            }
-
-            if self.settings.channels_settings[i].enable != new_settings.channels_settings[i].enable{
-                self.switch_hv_output(ecp5, new_settings.channels_settings[i].enable);
-            }
-
-            // Change DACA value ( U )
-            if self.settings.channels_settings[i].u_ctrl != new_settings.channels_settings[i].u_ctrl{ // TODO change slot number 1 to self.slot
-                Max1329::set_daca_value(1, ecp5, new_settings.channels_settings[i].u_ctrl);
-            }
-            log::info!("MAX {}", i);
-            log::info!("DACA value: {}", new_settings.channels_settings[i].u_ctrl);
-            log::info!("DACA: {}", Max1329::read_daca_value(1, ecp5));
-
-            // Change DACB value ( I )
-            if self.settings.channels_settings[i].i_ctrl != new_settings.channels_settings[i].i_ctrl{
-                Max1329::set_dacb_value(1, ecp5, new_settings.channels_settings[i].i_ctrl);
-            }
-
-            log::info!("DACB value: {}", new_settings.channels_settings[i].i_ctrl);
-            log::info!("DACB: {}", Max1329::read_dacb_value(1, ecp5));
-
-            // Change CS pol to first Max again (default for idle)
-            if i == 1{
-                ecp5.set_spi_cs_pol(1, 0); // TODO change to self.slot
-            }
-            // ADC Gain will be changed when receiveng next sample
-        }
-
-        self.settings = new_settings;
-        log::info!("KONIEC SETTINGS UPDATE");
-    }
-
-    fn telemetry(&mut self, ecp5: &mut ECP5) -> (Telemetry, u16) {
-
-        for i in 0..2{
-            if i == 1{
-                ecp5.set_spi_cs_pol(1, 1); // TODO change to self.slot
-            }
-
-            Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-            while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
-                log::info!("W8 for ADC");
-            }
-            let x = Max1329::read_adc_data_register(1, ecp5);
-            self.telemetry.u_meas[i] = AdcCode(x.0);
-
-            Max1329::set_adc_setup_direct(1,
-            ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-
-            let x = Max1329::read_adc_data_register(1, ecp5);
-            self.telemetry.i_meas[i] = AdcCode(x.0);
-
-            if i == 1{
-                ecp5.set_spi_cs_pol(1, 0); // TODO change to self.slot
-            }
-        }
-
-
-        (self.telemetry.finalize(hvsup_telemetry!($variant)),
-         self.settings.telemetry_period)
-
-    }
-    fn check_interrupt(&mut self, ecp5: &mut ECP5){
-        for i in 0..2{
-            // Change CS pol for second Max
-            // if i == 1{
-            //     ecp5.set_spi_cs_pol(self.slot, 1);
-            // }
-
-            let status : u32 = Max1329::read_status_register(self.slot, ecp5);
-
-            // if (status & max1329::ADD) != 0 {
-            //         self.read_adc_data(ecp5, i);
-            // }
-
-            // Change CS pol for first Max again (default for idle)
-            // if i == 1{
-            //     ecp5.set_spi_cs_pol(self.slot, 0);
-            // }
-        }
-    }
-}
-    }};
- }
-
 #[derive(Copy, Clone)]
-pub enum OutputVariant{
+pub enum OutputVariant {
     Positive,
     Negative,
 }
 
+#[derive(Copy, Clone, Default)]
+pub struct CalibrateEntry {
+    expected: u16,
+    adc_read: f32,
+    user_read: f32,
+}
+
+#[derive(Copy, Clone)]
+struct CalibrateData {
+    points: [CalibrateEntry; CalibrateData::POINTS_NUM],
+    current_point: usize,
+    current_channel: Channel,
+    prev_accept_data: bool,
+    is_on: bool,
+}
+
+impl CalibrateData {
+    const POINTS_NUM: usize = 5;
+    const MIN_VAL: f64 = 300.0;
+    const MAX_VAL: f64 = 1300.0;
+}
+
+impl Default for CalibrateData {
+    fn default() -> Self {
+        let mut points: [CalibrateEntry; CalibrateData::POINTS_NUM] =
+            [CalibrateEntry::default(); CalibrateData::POINTS_NUM];
+        for i in 0..points.len() {
+            points[i].expected = (i as f64
+                * ((CalibrateData::MAX_VAL - CalibrateData::MIN_VAL)
+                    / CalibrateData::POINTS_NUM as f64)
+                + CalibrateData::MIN_VAL) as u16;
+        }
+
+        CalibrateData {
+            points,
+            current_point: 0,
+            current_channel: Channel::A,
+            prev_accept_data: false,
+            is_on: false,
+        }
+    }
+}
+
+pub struct HvSupIsol {
+    pub settings: Settings,
+    bus: BusReference,
+    interlock_high: bool,
+    board_controller: BoardController,
+    max_controller: MaxController,
+    a_variant: OutputVariant,
+    b_variant: OutputVariant,
+    calibrate_data: CalibrateData,
+}
+
+impl HvSupIsol {
+    pub fn new(
+        slot_number: u8,
+        bus: BusReference,
+        a_variant: OutputVariant,
+        b_variant: OutputVariant,
+    ) -> Self {
+        Self {
+            settings: Settings::default(),
+            bus,
+            interlock_high: false,
+            // TODO(Adrian) - use slot number
+            board_controller: BoardController::new(1),
+            max_controller: MaxController::new(1),
+            a_variant,
+            b_variant,
+            calibrate_data: CalibrateData::default(),
+        }
+    }
+}
+
+impl HvSupIsol {
+    fn handle_normal(&mut self, new_settings: Settings) {
+        self.calibrate_data = CalibrateData::default();
+
+        let hv_enable = match new_settings.interlock_mode {
+            true => self.interlock_high && new_settings.hv_enable,
+            false => new_settings.hv_enable,
+        };
+
+        self.bus.lock(|bus| {
+            self.board_controller
+                .switch_hv_enable(hv_enable, &mut bus.ecp5);
+
+            for channel in Channel::get_all() {
+                let i = channel as usize;
+                let new_channel_settings = &new_settings.channels_settings[i];
+
+                let interlock_delay = if new_settings.interlock_mode {
+                    new_settings.interlock_delay
+                } else {
+                    0.0
+                };
+                let delay = new_settings.a_to_b_delay;
+                let delay = match channel {
+                    Channel::A if delay >= 0.0 => delay,
+                    Channel::B if delay < 0.0 => delay * -1.0,
+                    _ => 0.0,
+                } + interlock_delay;
+
+                let delay = Milliseconds::new((delay * 1000.0) as u32);
+
+                self.max_controller.set_target_voltage(
+                    channel,
+                    new_channel_settings.u_ctrl,
+                    new_channel_settings.u_step,
+                    delay,
+                );
+
+                self.max_controller.set_current(
+                    channel,
+                    new_channel_settings.i_ctrl as f32,
+                    &mut bus.ecp5,
+                );
+
+                self.max_controller.switch_output(
+                    channel,
+                    new_channel_settings.enable && hv_enable,
+                    &mut bus.ecp5,
+                );
+            }
+        });
+        self.settings = new_settings;
+    }
+
+    fn handle_calibrate(&mut self, new_settings: Settings) {
+        const U_STEP: f32 = 200.0;
+
+        self.bus.lock(|bus| {
+            match (
+                self.calibrate_data.current_point,
+                self.calibrate_data.current_channel,
+            ) {
+                (0, Channel::A) => {
+                    self.calibrate_data.is_on = true;
+                    self.max_controller.reset_calibration(Channel::A);
+                    self.max_controller.reset_calibration(Channel::B);
+                    let coefs = self.max_controller.get_coefs();
+                    self.board_controller
+                        .save_coefs(&coefs, &mut bus.cpcis_i2c, &mut bus.servmod);
+                }
+                _ => (),
+            };
+
+            let new_accept_value = new_settings.accept_calibrate_value;
+            if self.calibrate_data.prev_accept_data != new_accept_value {
+                self.calibrate_data.prev_accept_data = new_accept_value;
+
+                if new_accept_value {
+                    let point = &mut self.calibrate_data.points[self.calibrate_data.current_point];
+                    point.user_read = new_settings.calibrate_value;
+                    point.adc_read = self
+                        .max_controller
+                        .read_voltage(self.calibrate_data.current_channel, &mut bus.ecp5);
+
+                    self.calibrate_data.current_point += 1;
+                    if self.calibrate_data.current_point >= CalibrateData::POINTS_NUM {
+                        self.max_controller.calibrate(
+                            self.calibrate_data.current_channel,
+                            self.calibrate_data.points,
+                        );
+
+                        self.calibrate_data.current_channel =
+                            match self.calibrate_data.current_channel {
+                                Channel::A => Channel::B,
+                                Channel::B => {
+                                    let coefs = self.max_controller.get_coefs();
+                                    self.board_controller.save_coefs(
+                                        &coefs,
+                                        &mut bus.cpcis_i2c,
+                                        &mut bus.servmod,
+                                    );
+                                    self.calibrate_data.is_on = false;
+                                    log::info!("Ending calibration");
+                                    Channel::B
+                                }
+                            };
+
+                        self.calibrate_data.current_point = 0;
+                    }
+                }
+            }
+
+            let i = self.calibrate_data.current_point;
+            let point = &mut self.calibrate_data.points[i];
+            let current_channel = self.calibrate_data.current_channel;
+
+            let other_channel = match current_channel {
+                Channel::A => Channel::B,
+                Channel::B => Channel::A,
+            };
+            self.board_controller.switch_hv_enable(true, &mut bus.ecp5);
+
+            // Current channel
+            self.max_controller.set_target_voltage(
+                current_channel,
+                point.expected,
+                U_STEP,
+                Milliseconds::new(0),
+            );
+            self.max_controller
+                .set_current(current_channel, MaxController::I_MAX, &mut bus.ecp5);
+            self.max_controller
+                .switch_output(current_channel, true, &mut bus.ecp5);
+
+            // Other channel
+            self.max_controller
+                .set_target_voltage(other_channel, 0, U_STEP, Milliseconds::new(0));
+            self.max_controller
+                .set_current(other_channel, 0.0, &mut bus.ecp5);
+            self.max_controller
+                .switch_output(other_channel, false, &mut bus.ecp5);
+        });
+    }
+}
+
+impl Devices<Settings, Telemetry> for HvSupIsol {
+    fn init(&mut self) -> bool {
+        self.bus.lock(|bus| {
+            let dev_name = self
+                .board_controller
+                .read_device_name(&mut bus.cpcis_i2c, &mut bus.servmod);
+            let dev_name = match core::str::from_utf8(&dev_name) {
+                Ok(name) => name,
+                Err(_) => return false,
+            };
+            if dev_name != "HVSUP_ISOL" {
+                log::info!("HVSUP wrong board name");
+                return false;
+            }
+            log::info!("HVSUP correct board name");
+
+            self.board_controller.init(&mut bus.ecp5);
+            self.board_controller.switch_hv_enable(false, &mut bus.ecp5);
+            self.board_controller.switch_psu_enable(true, &mut bus.ecp5);
+
+            self.board_controller
+                .enable_interrupt(IoPin::Interlock, &mut bus.ecp5);
+
+            self.max_controller.init(&mut bus.ecp5);
+
+            let coefs = self
+                .board_controller
+                .read_coefs(&mut bus.cpcis_i2c, &mut bus.servmod);
+            self.max_controller.set_coefs(coefs);
+
+            // let mut test_coefs = [Coefs::default(); 2];
+            // test_coefs[0].a_coef = 25.5;
+            // test_coefs[0].b_coef = 12.5;
+
+            // test_coefs[1].a_coef = 35.5;
+            // test_coefs[1].b_coef = 42.5;
+
+            // self.board_controller.save_coefs(&test_coefs, &mut bus.cpcis_i2c, &mut bus.servmod);
+            // let coefs = self.board_controller.read_coefs(&mut bus.cpcis_i2c, &mut bus.servmod);
+            // log::info!("Coef A a: {}", coefs[0].a_coef);
+            // log::info!("Coef A b : {}", coefs[0].b_coef);
+            // log::info!("Coef B a: {}", coefs[1].a_coef);
+            // log::info!("Coef B b : {}", coefs[1].b_coef);
+
+            true
+        })
+    }
+
+    fn settings_update(&mut self, new_settings: Settings) -> () {
+        if new_settings.calibrate_mode {
+            self.handle_calibrate(new_settings);
+        } else {
+            self.handle_normal(new_settings);
+        }
+    }
+    fn telemetry(&mut self) -> (Telemetry, u16) {
+        let mut telemetry = Telemetry::default();
+        self.bus.lock(|bus| {
+            for channel in Channel::get_all() {
+                let i = channel as usize;
+                telemetry.channels[i].voltage =
+                    self.max_controller.read_voltage(channel, &mut bus.ecp5);
+                telemetry.channels[i].current =
+                    self.max_controller.read_current(channel, &mut bus.ecp5);
+            }
+
+            if matches!(self.a_variant, OutputVariant::Negative) {
+                telemetry.channels[0].voltage *= -1.0;
+                telemetry.channels[0].current *= -1.0;
+            }
+
+            if matches!(self.b_variant, OutputVariant::Negative) {
+                telemetry.channels[1].voltage *= -1.0;
+                telemetry.channels[1].current *= -1.0;
+            }
+
+            self.board_controller
+                .read_io(IoPin::Interlock, &mut bus.ecp5);
+            telemetry.temp = self
+                .board_controller
+                .read_temp(&mut bus.cpcis_i2c, &mut bus.servmod);
+            telemetry.is_calibration_on = self.calibrate_data.is_on;
+        });
+
+        (telemetry, self.settings.telemetry_period)
+    }
+
+    fn check_interrupt(&mut self) {
+        self.bus.lock(|bus| {
+            self.interlock_high = self
+                .board_controller
+                .read_io(IoPin::Interlock, &mut bus.ecp5);
+            self.board_controller.clear_interrupts(&mut bus.ecp5);
+
+            if self.settings.interlock_mode {
+                let state = self.interlock_high && self.settings.hv_enable;
+                self.board_controller.switch_hv_enable(state, &mut bus.ecp5);
+                for channel in Channel::get_all() {
+                    self.max_controller
+                        .switch_output(channel, state, &mut bus.ecp5);
+                }
+            }
+        });
+    }
+
+    fn poll(&mut self) -> u32 {
+        self.bus
+            .lock(|bus| self.max_controller.update_voltage(&mut bus.ecp5))
+    }
+}
