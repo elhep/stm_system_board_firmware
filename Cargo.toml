@@ -12,7 +12,7 @@ keywords = ["ethernet"]
 repository = "https://github.com/elhep/stm_system_board_firmware"
 readme = "README.md"
 documentation = ""
-edition = "2023"
+edition = "2021"
 exclude = [
 	".gitignore",
 	"doc/",

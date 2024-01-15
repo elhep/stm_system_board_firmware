@@ -207,12 +207,14 @@ impl HVSUP_ISOL<$variant>
     /// False - switch OFF
     fn switch_hv_output(&self, ecp5: &mut ECP5, state: bool){
         if state {
-            ecp5.write_outputs(1, &[0, 0b0011_0000]); // enable hv
+            ecp5.write_outputs(self.slot, &[0, 0b0011_0000]); // enable hv
             log::info!("IO switch ON");
+            // TODO(Adrian) - enable HV output with MAX
             //Max1329::set_dpio_setup_register(self.slot, ecp5, 0xF0);
         } else {
-            ecp5.write_outputs(1, &[0, 0b0000_0000]); // enable hv
+            ecp5.write_outputs(self.slot, &[0, 0b0000_0000]); // enable hv
             log::info!("IO switch OFF");
+            // TODO(Adrian) - enable HV output with MAX
             //Max1329::set_dpio_setup_register(self.slot, ecp5, 0xFF);
         }
     }
@@ -220,43 +222,45 @@ impl HVSUP_ISOL<$variant>
 
 impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
     fn init(&mut self, ecp5: &mut ECP5) -> bool {
-        // First device APIO (SPI extender).
-        // TODO check APIO SETUP during tests - should work without changes
+        // Configure firts MAX1329 APIO as SPI extender
+        ecp5.set_spi_cs_pol(self.slot, 0);
         Max1329::set_apio_control_register(self.slot, ecp5, u8::MAX);
-        for i in 0..2{
-            // Change CS pol for second Max
-            if i == 1{
+        for i in 0..2 {
+            if i == 1 {
                 ecp5.set_spi_cs_pol(self.slot, 1);
             }
 
+            // Turn HV output off
+            self.switch_hv_output(ecp5, false);
+
+            // Configure MAX1329 clocks
             // Internal OSC, Disabled CLKIO out, ADC clock Divider = 1, Acquisition clocks 4 (G=1,2) or 8 (G=4, 8)
             Max1329::set_clock_control_register(self.slot, ecp5, 0b01000001);
+            
+            // Configure MAX1329 charge pump and voltage monitoring
             // Int active high (because of MOSFET), RST1 interrupt, charge-pump On 3V,
             // CP clock divider: 64 (57 kHz with internal OSC, suggested between 39k - 78kHz)
             Max1329::set_cpvm_control_register(self.slot, ecp5, 0b11000101);
-            // Set pullup for all inputs and logic high for outputs (low would enable HV)
-            self.switch_hv_output(ecp5, false);
-            // DPIO1 output, DPIO2-4 input.
-            Max1329::set_dpio_control_register(self.slot, ecp5, 0x000F);
-            // Enable ADC Data Ready interrupt
-            Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::ADD));
 
-            // Enable DACs
-            Max1329::set_dac_control(self.slot, ecp5, dac::PowerDownConf::InToOut,
-                                                      dac::PowerDownConf::InToOut,
+            // Configure MAX1329 DPIO pins
+            // DPIO1 output
+            Max1329::set_dpio_control_register(self.slot, ecp5, 0x000F);
+            
+            // TODO(Adrian) - decide if we need interrupts
+            // Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::ADD));
+
+            // Enable MAX1329 DACs
+            Max1329::set_dac_control(self.slot, ecp5, dac::PowerDownConf::InOut,
+                                                      dac::PowerDownConf::InOut,
                                                       dac::OpAmp::Disable,
                                                       dac::RefConf::Ext1_0);
 
-            // ADC Master Clock Cycles - 32 - For Internal OSC -> 115,2 ksps
+            // Disable autoconversion - only sample during telemetry
             // Reference: disable REFADJ and internal REF ADC/DAC buffers (AJD -> REFADC, ADJ -> REFDAC),
             // apply external references directly at REFADC and REFDAC pins
-            Max1329::set_adc_control_register(self.slot, ecp5, adc::AutoConversion::Clk32,
+            Max1329::set_adc_control_register(self.slot, ecp5, adc::AutoConversion::Disabled,
                                                                adc::PowerDownConf::Normal,
                                                                adc::RefConf::ExtBuffOff,);
-            // Default Setup ADC input: Ain1, ADC gain 1, Unipolar mode (Default MUX SEL is 0)
-            //TODO configure ADC
-            // Max1329::set_adc_setup_direct()
-
 
             // Change CS pol for first Max again (default for idle)
             if i == 1{
@@ -268,10 +272,9 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
     }
 
     fn settings_update(&mut self, ecp5: &mut ECP5, new_settings: Settings) -> () {
-        for i in 0..1{ // TODO change for loop 0..2 after tests
-            log::info!("Settings loop");
-            // Change CS pol for second Max
-            if i == 1{
+        ecp5.set_spi_cs_pol(self.slot, 0);
+        for i in 0..2 {
+            if i == 1 {
                 ecp5.set_spi_cs_pol(self.slot, 1);
             }
 
@@ -281,60 +284,56 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
 
             // Change DACA value ( U )
             if self.settings.channels_settings[i].u_ctrl != new_settings.channels_settings[i].u_ctrl{ // TODO change slot number 1 to self.slot
-                Max1329::set_daca_value(1, ecp5, new_settings.channels_settings[i].u_ctrl);
+                Max1329::set_daca_value(self.slot, ecp5, new_settings.channels_settings[i].u_ctrl);
             }
 
             // Change DACB value ( I )
             if self.settings.channels_settings[i].i_ctrl != new_settings.channels_settings[i].i_ctrl{
-                Max1329::set_dacb_value(1, ecp5, new_settings.channels_settings[i].i_ctrl);
+                Max1329::set_dacb_value(self.slot, ecp5, new_settings.channels_settings[i].i_ctrl);
             }
 
             // Change CS pol to first Max again (default for idle)
-            if i == 1{
+            if i == 1 {
                 ecp5.set_spi_cs_pol(self.slot, 0);
             }
             // ADC Gain will be changed when receiveng next sample
         }
         self.settings = new_settings;
-        log::info!("Exit Settings");
     }
 
     fn telemetry(&mut self, ecp5: &mut ECP5) -> (Telemetry, u16) {
-            Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-            while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
-                log::info!("W8 for ADC");
+        ecp5.set_spi_cs_pol(self.slot, 0);
+        for i in 0..2 {
+            if i == 1 {
+                ecp5.set_spi_cs_pol(self.slot, 1);
             }
-            let x = Max1329::read_adc_data_register(1, ecp5);
-            self.telemetry.u_meas[0] = AdcCode(x.0);
 
-            Max1329::set_adc_setup_direct(1,
-            ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+            Max1329::set_adc_setup_direct(self.slot, ecp5, max1329::adc::Mux::AIN1_AGND,
+                                          max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+            while (Max1329::read_status_register(self.slot, ecp5) | (1 << 20)) == 0 {
+                log::info!("HVSUP waiting for ADC...");
+            }
+            self.telemetry.u_meas[i] = Max1329::read_adc_data_register(self.slot, ecp5);
 
-            let x = Max1329::read_adc_data_register(1, ecp5);
-            self.telemetry.i_meas[0] = AdcCode(x.0);
+            Max1329::set_adc_setup_direct(self.slot, ecp5, max1329::adc::Mux::AIN2_AGND,
+                                          max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+            while (Max1329::read_status_register(self.slot, ecp5) | (1 << 20)) == 0 {
+                log::info!("HVSUP waiting for ADC...");
+            }
+            self.telemetry.i_meas[i] = Max1329::read_adc_data_register(self.slot, ecp5);
+
+            if i == 1 {
+                ecp5.set_spi_cs_pol(self.slot, 0);
+            }
+        }
 
             (self.telemetry.finalize(hvsup_telemetry!($variant)),
              self.settings.telemetry_period)
 
     }
-    fn check_interrupt(&mut self, ecp5: &mut ECP5){
-        for i in 0..2{
-            // Change CS pol for second Max
-            if i == 1{
-                ecp5.set_spi_cs_pol(self.slot, 1);
-            }
 
-            let status : u32 = Max1329::read_status_register(self.slot, ecp5);
-
-            if (status & max1329::ADD) != 0 {
-                    self.read_adc_data(ecp5, i);
-            }
-
-            // Change CS pol for first Max again (default for idle)
-            if i == 1{
-                ecp5.set_spi_cs_pol(self.slot, 0);
-            }
-        }
+    fn check_interrupt(&mut self, _ecp5: &mut ECP5) {
+        // Empty - don't need interrupts
     }
 }
     }};
