@@ -85,11 +85,11 @@ impl Max1329 {
         }
     }
 
-    pub fn setup_spi_cs_pol(slot: u8, ecp: &mut ECP5, pol: u8){
-        let offset = slot * ecp5::OFFSET_TO_SLOT + ecp5::OFFSET_TO_SPI;
-        ecp.write_to_ecp5(offset + ecp5::SPI::CS_POL, &mut [0x00, pol]).unwrap();
-
-    }
+    // pub fn setup_spi_cs_pol(slot: u8, ecp: &mut ECP5, pol: u8){
+    //     let offset = slot * ecp5::OFFSET_TO_SLOT + ecp5::OFFSET_TO_SPI;
+    //     ecp.write_to_ecp5(offset + ecp5::SPI::CS_POL, &mut [0x00, pol]).unwrap();
+    //
+    // }
 
     // Configure SPI in ECP5
     pub fn setup_ecp5_spi_master(slot: u8, ecp: &mut ECP5, clk_pol: u8){ //TODO delete clk_pol as soon as HVSUP is fixed
@@ -367,6 +367,15 @@ impl Max1329 {
                                      register_value: u8){
         let data : [u8; 2] = [APIO_CONTROL | WRITE, register_value];
         ecp5.write_spi(slot, &data);
+    }
+
+    pub fn read_apio_control_register(slot : u8,
+                                     ecp5: &mut ECP5) -> u8 {
+        let mut data : [u8; 1] = [0; 1];
+        let address = [APIO_CONTROL | READ];
+        ecp5.read_spi(slot, &address, &mut data);
+
+        data[0]
     }
 
     pub fn set_dpio_control_register(slot : u8,

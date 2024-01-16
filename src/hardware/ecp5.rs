@@ -121,10 +121,16 @@ impl ECP5 {
     //     self.read_from_ecp5(self.get_device_reg_addr(slot_number), dest)
     // }
 
-    pub fn set_spi_cs_pol(&mut self,
-                          _slot_number : u8,
-                          _pol : u8) {
-        //TODO wrtie proper write_to_ecp5
+    // pub fn set_spi_cs_pol(&mut self,
+    //                       _slot_number : u8,
+    //                       _pol : u8){
+    //     //TODO wrtie proper write_to_ecp5
+    // }
+
+    pub fn set_spi_cs_pol(&mut self, slot: u8, pol: u8){
+        let offset = slot * OFFSET_TO_SLOT + OFFSET_TO_SPI;
+        self.write_to_ecp5(offset + SPI::CS_POL, &mut [0x00, pol]).unwrap();
+
     }
 
     fn spi_machine_write(&mut self, slot_number : u8, data: &[u8; 2]){
