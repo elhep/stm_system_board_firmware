@@ -37,6 +37,7 @@ impl SiLPADetector{
     where 
         T: WriteRead,
     {
+        log::info!("---Set Coeeficients---");
         match slot{
             1 => servmod.0.set_low().unwrap(), 
             2 => servmod.1.set_low().unwrap(),
@@ -109,13 +110,13 @@ where
         400000000,
     ))  ;
     if i2c
-        .write(address, &mut [0x00, 0x01, 0x02, 0x03, 0x04, 0x05])
+        .write(address, &mut [0x40, 0x01, 0x02, 0x03, 0x04, 0x05])
         .is_ok()
     {
             //i2c.write(address, &mut [0x00]);
             delay.delay_ms(100 as u32);
             match i2c
-                .write_read(I2C_ADDR, &[0x00], &mut test_data)
+                .write_read(I2C_ADDR, &[0x40], &mut test_data)
             {
                 Ok(()) => {
                     for i in 0..5 {
@@ -146,35 +147,41 @@ where
     let channel_2_slope: f32;
     let channel_2_intercept: f32;
 
-    let mut received_coefficients : [u8; 16] = [0; 16];  
+    let mut received_coefficients : [u8; 4] = [0; 4];  
 
     match i2c.write_read(I2C_ADDR, &[EEPROM_CHANNEL_1_COEFFICIENTS], &mut received_coefficients){
         Ok(()) => {
-            channel_1_slope = ( 
-                                ((received_coefficients[0] as u32) << 24) |
+            log::info!("Data po odczycie: {:#010b} {:#010b} {:#010b} {:#010b}", received_coefficients[0], received_coefficients[1], 
+                                                        received_coefficients[2], received_coefficients[3]);
+            let var =      ((received_coefficients[0] as u32) << 24) |
                                 ((received_coefficients[1] as u32) << 16) |
                                 ((received_coefficients[2] as u32) << 8) |
-                                ((received_coefficients[3] as u32) << 0)
-                            ) as f32;
-            channel_1_intercept = ( 
-                                ((received_coefficients[4] as u32) << 24) |
-                                ((received_coefficients[5] as u32) << 16) |
-                                ((received_coefficients[6] as u32) << 8) |
-                                ((received_coefficients[7] as u32) << 0)
-                            ) as f32;    
+                                ((received_coefficients[3] as u32) << 0);
+            channel_1_slope = f32::from_bits(var);
+            log::info!("Channel_1_slope : {}", channel_1_slope);
+            log::info!("Channel_1_slope : {}", channel_1_slope.to_bits());
+            channel_1_intercept = 0.0;
+            // ( 
+            //                     ((received_coefficients[4] as u32) << 24) |
+            //                     ((received_coefficients[5] as u32) << 16) |
+            //                     ((received_coefficients[6] as u32) << 8) |
+            //                     ((received_coefficients[7] as u32) << 0)
+            //                 ) as f32;    
 
-            channel_2_slope = ( 
-                                ((received_coefficients[8] as u32) << 24) |
-                                ((received_coefficients[9] as u32) << 16) |
-                                ((received_coefficients[10] as u32) << 8) |
-                                ((received_coefficients[11] as u32) << 0)
-                            ) as f32;
-            channel_2_intercept = ( 
-                                ((received_coefficients[12] as u32) << 24) |
-                                ((received_coefficients[13] as u32) << 16) |
-                                ((received_coefficients[14] as u32) << 8) |
-                                ((received_coefficients[15] as u32) << 0)
-                            ) as f32;     
+            channel_2_slope = 0.0;
+            // ( 
+            //                     ((received_coefficients[8] as u32) << 24) |
+            //                     ((received_coefficients[9] as u32) << 16) |
+            //                     ((received_coefficients[10] as u32) << 8) |
+            //                     ((received_coefficients[11] as u32) << 0)
+            //                 ) as f32;
+            channel_2_intercept = 0.0;
+            // ( 
+            //                     ((received_coefficients[12] as u32) << 24) |
+            //                     ((received_coefficients[13] as u32) << 16) |
+            //                     ((received_coefficients[14] as u32) << 8) |
+            //                     ((received_coefficients[15] as u32) << 0)
+            //                 ) as f32;     
         }
         Err(e) => {
             panic!("I2C Error receiving coefficients")
@@ -196,19 +203,21 @@ where
     let ch2_slope_u32 : u32 = data[2].to_bits();
     let ch1_intercept_u32 : u32 = data[1].to_bits();
     let ch2_intercept_u32 : u32 = data[3].to_bits();
-    log::info!("Dane po konwersji na u32: {:#034b} {:#034b} {:#034b} {:#034b}", ch1_slope_u32, ch2_slope_u32, ch1_intercept_u32, ch2_intercept_u32);
+    log::info!("Dane po konwersji na u32: {} {} {} {}", ch1_slope_u32, ch2_slope_u32, ch1_intercept_u32, ch2_intercept_u32);
 
     let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
         400000000,
     ));
-
+    log::info!("f32 : ch1_slope : {}", data[0]);
+    log::info!("f32 bits : ch1_slope : {}", data[0].to_bits());
     for i in 0..7{
         if i < 4 {
-            array_1st_page[i + 1] = (ch1_slope_u32 >>  24 - 8*i | 0x00) as u8;
-            array_2nd_page[i + 1] = (ch2_slope_u32 >>  24 - 8*i | 0x00) as u8;
+            array_1st_page[i + 1] = (ch1_slope_u32 >>  (24 - 8*i)) as u8;
+            log::info!("wpisywane wartosci do tablicy: element :{} warotść :{:#010b}", i, array_1st_page[i + 1]);
+            array_2nd_page[i + 1] = (ch2_slope_u32 >>  (24 - 8*i)) as u8;
         } else {
-            array_1st_page[i + 1] = (ch1_intercept_u32 >> 24 - 8*(i - 4) | 0x00) as u8;
-            array_2nd_page[i + 1] = (ch2_intercept_u32 >> 24 - 8*(i - 4) | 0x00) as u8;
+            array_1st_page[i + 1] = (ch1_intercept_u32 >> (24 - 8*(i - 4))) as u8;
+            array_2nd_page[i + 1] = (ch2_intercept_u32 >> (24 - 8*(i - 4))) as u8;
         }
     }
 
@@ -218,16 +227,15 @@ where
     // Wpisanie do pamieci testowych współczynników
     let _ = i2c.write(address, &array_1st_page);
     delay.delay_ms(100 as u32);
-    let _ = i2c.write(address, &array_2nd_page);
-    delay.delay_ms(100 as u32);
+    // let _ = i2c.write(address, &array_2nd_page);
+    // delay.delay_ms(100 as u32);
     // Odczytanie przykładowych współczynników
     let mut detector_coefficients : [f32; 4] = [0.0; 4];
-    (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(i2c);
 
-    log::info!("Przykładowe wartości parametrów do testów: {} {} {} {}",    data[0].to_bits(), data[1].to_bits(), data[2].to_bits(), data[3].to_bits());
-    log::info!("Odczytane wartości z eepromu:              {} {} {} {}",    detector_coefficients[0].to_bits(), detector_coefficients[1].to_bits(), 
-                                                                            detector_coefficients[2].to_bits(), detector_coefficients[3].to_bits());
-        
-    
+        (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(i2c);
+
+        log::info!("Przykładowe wartości parametrów do testów: {} {} {} {}",    data[0].to_bits() as u32, data[1].to_bits() as u32, data[2].to_bits() as u32, data[3].to_bits() as u32);
+        log::info!("Odczytane wartości z eepromu:              {} {} {} {}",    detector_coefficients[0].to_bits() as u32, detector_coefficients[1].to_bits() as u32, 
+                                                                                detector_coefficients[2].to_bits() as u32, detector_coefficients[3].to_bits() as u32);
 
 }

@@ -152,11 +152,11 @@ mod app {
         log::info!("Poczatek testu EEPROM");
         log::info!("-------------------------");
         let mut detector_coefficients : [f32; 4] = [1.2, 0.22, 1.31, 0.25];
-        log::info!("Wpisywane wartości do eepromu:");
-        log::info!("ch1_slope: {}", detector_coefficients[0].to_bits());
-        log::info!("ch1_intercept: {}", detector_coefficients[1].to_bits());
-        log::info!("ch2_slope: {}", detector_coefficients[2].to_bits());
-        log::info!("ch2_intercept: {}", detector_coefficients[3].to_bits());
+        // log::info!("Wpisywane wartości do eepromu:");
+        // log::info!("ch1_slope: {}", detector_coefficients[0].to_bits());
+        // log::info!("ch1_intercept: {}", detector_coefficients[1].to_bits());
+        // log::info!("ch2_slope: {}", detector_coefficients[2].to_bits());
+        // log::info!("ch2_intercept: {}", detector_coefficients[3].to_bits());
         // (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(&mut i2c_bp);
         hardware::eeprom::test_example_coefficients(&mut i2c_bp, 0b1010_000, &mut detector_coefficients);
         log::info!("-------------------------");
