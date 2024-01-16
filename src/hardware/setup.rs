@@ -567,6 +567,8 @@ pub fn setup(
             .parse()
             .unwrap();
 
+        // let ip_addrs: smoltcp::wire::IpAddress = "192.168.122.5".parse().unwrap();
+
         // Note(unwrap): The hardware configuration function is only allowed to be called once.
         // Unwrapping is intended to panic if called again to prevent re-use of global memory.
         let store =

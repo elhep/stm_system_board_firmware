@@ -1,6 +1,7 @@
 use super::{OutputVariant, HVSUP_ISOL};
 use crate::{hvsup_telemetry, hvsup_devices_trait};
 use crate::hardware::ecp5::ECP5;
+use crate::hardware::ecp5;
 use crate::hardware::devices::{Variants, Devices};
 use crate::hardware::devices::max1329::{self, Max1329, dac};
 use crate::hardware::devices::max1329::adc::{self, AdcCode};

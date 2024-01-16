@@ -4,7 +4,7 @@
 //!
 //! ## Telemetry
 //! Refer to [Telemetry] for information about telemetry reported by this application.
-#![deny(warnings)]
+// #![deny(warnings)]
 #![no_std]
 #![no_main]
 
@@ -80,6 +80,12 @@ mod app {
         );
 
         let mut ecp5 = stm_sys_board.ecp5;
+        // log::info!("Konfiguracja SPI dla slotu 2 (realnie 5)");
+        // Max1329::setup_ecp5_spi_master(1, &mut ecp5, 1);
+        let mut device0 = Device0Type::new(5);
+        log::info!("Device init start");
+        device0.init(&mut ecp5);
+        log::info!("Device init stop");
 
         let network = NetworkUsers::new(
             stm_sys_board.net.stack,
@@ -88,7 +94,7 @@ mod app {
             env!("CARGO_BIN_NAME"),
             stm_sys_board.net.mac_address,
             option_env!("BROKER")
-                .unwrap_or("192.168.95.145")
+                .unwrap_or("192.168.122.72")
                 .parse()
                 .unwrap(),
             Settings::default(),
@@ -97,7 +103,6 @@ mod app {
 
         let _i2c = stm_sys_board.therm_i2c;
         let _i2c_bp = stm_sys_board.cpcis_i2c;
-        let device0 = Device0Type::new(5);
         let mut servmod = stm_sys_board.servmod;
         // let mut array : [u8; 2] = [0x00, 0x00];
 
@@ -119,7 +124,7 @@ mod app {
         // hardware::eeprom::test_eeprom(&mut i2c, 0b1010_000).unwrap();
         //
         // log::info!("TEST SILPA SLOT 5: eeprom");
-        servmod.4.set_high().unwrap();
+        // servmod.4.set_high().unwrap();
         //
         //
         //
@@ -137,7 +142,7 @@ mod app {
         // //hardware::eeprom::test_eeprom(&mut i2c_bp, 0b1010_000).unwrap();
         //
         //
-        servmod.4.set_low().unwrap();
+        // servmod.4.set_low().unwrap();
         //
         // log::info!("Silpa I2C test done");
 
@@ -158,16 +163,14 @@ mod app {
         // // ecp5.read_inputs(1, &mut array);
         // // log::info!("Odebrane stany wejściowe: {} {}", array[0], array[1]);
         //
-        log::info!("Konfiguracja SPI dla slotu 2 (realnie 5)");
-        Max1329::setup_ecp5_spi_master(1, &mut ecp5, 1);
 
 
         // let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
         //     400000000,
         // ))  ;
         //
-        ecp5.write_oe(1, &[0, 0b0011_0000]);  // driving PSU_EN to 1 + HV EN
-        ecp5.write_outputs(1, &[0, 0b0000_0000]); // enable hv
+        // ecp5.write_oe(1, &[0, 0b0011_0000]);  // driving PSU_EN to 1 + HV EN
+        // ecp5.write_outputs(1, &[0, 0b0000_0000]); // enable hv
 
         // Max1329::reset_device(1, &mut ecp5);
         // //delay.delay_ms(100000 as u32);
@@ -222,21 +225,21 @@ mod app {
             reference: max1329::adc::RefConf::ExtBuffOff,
         };
 
-        Max1329::set_cpvm_control_register(1, &mut ecp5, variables.cpvm_reg);
+        // Max1329::set_cpvm_control_register(1, &mut ecp5, variables.cpvm_reg);
 
         #[allow(dead_code)]
         fn test_dac(ecp: &mut ECP5){
-            log::info!("SET_DAC_CONTROL");
-            Max1329::set_dac_control(1,  ecp,
-                          max1329::dac::PowerDownConf::InOut,
-                          max1329::dac::PowerDownConf::InOut,
-                          max1329::dac::OpAmp::Disable,
-                          max1329::dac::RefConf::ExtBuffOff);
-            // log::info!("SET_DACA_VALUE");
-            let daca_value = 0b0000_0000_0000_0000;
-            let dacb_value = 0b0000_0000_0000_0000;
-            Max1329::set_daca_value(1, ecp, daca_value);
-            Max1329::set_dacb_value(1, ecp, dacb_value);
+            // log::info!("SET_DAC_CONTROL");
+            // Max1329::set_dac_control(1,  ecp,
+            //               max1329::dac::PowerDownConf::InOut,
+            //               max1329::dac::PowerDownConf::InOut,
+            //               max1329::dac::OpAmp::Disable,
+            //               max1329::dac::RefConf::ExtBuffOff);
+            // // log::info!("SET_DACA_VALUE");
+            // let daca_value = 0b0000_0000_0000_0000;
+            // let dacb_value = 0b0000_0000_0000_0000;
+            // Max1329::set_daca_value(1, ecp, daca_value);
+            // Max1329::set_dacb_value(1, ecp, dacb_value);
             //
             //         //delay.delay_ms(100 as u32);
             // log::info!("STATUS READ:");
@@ -266,9 +269,9 @@ mod app {
         //
         // delay.delay_ms(100 as u32);
         //
-        Max1329::set_interrupt_mask_register(1, &mut ecp5, 0b1110_1111_1111_1111_1111_1111); // unmask ADC done
-        Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, variables.reference);
-        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // Max1329::set_interrupt_mask_register(1, &mut ecp5, 0b1110_1111_1111_1111_1111_1111); // unmask ADC done
+        // Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, variables.reference);
+        // Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         // Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         //
         //
@@ -293,8 +296,8 @@ mod app {
         //
         // log::info!("HW_REV {}", Max1329::read_apio_setup_register(1, &mut ecp5) & 0x7);
         //
-        Max1329::set_dpio_control_register(1, &mut ecp5, 0xFFFF);  // outputs
-        Max1329::set_dpio_setup_register(1, &mut ecp5, 0x00);      // all low
+        // Max1329::set_dpio_control_register(1, &mut ecp5, 0xFFFF);  // outputs
+        // Max1329::set_dpio_setup_register(1, &mut ecp5, 0x00);      // all low
         //
         // log::info!("DPIO SETUP {}", Max1329::read_dpio_setup_register(1, &mut ecp5));
         // let x = Max1329::read_dpio_control_register(1, &mut ecp5);
@@ -405,10 +408,10 @@ mod app {
         // // log::info!("INT MASK: {} {}", array[0], array[1]);
         //
         //
-        test_dac(&mut ecp5);
+        // test_dac(&mut ecp5);
         //
         //
-        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         //
         // Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         // while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {

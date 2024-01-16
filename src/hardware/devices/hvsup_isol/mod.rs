@@ -142,7 +142,7 @@ where
     ) -> Self
     {
         Self{
-            slot: slot_number,
+            slot: 1,
             settings: T::VariantSettings::default(),
             telemetry: T::VariantTelemetryBuffer::default(),
         }
@@ -207,15 +207,26 @@ impl HVSUP_ISOL<$variant>
     /// False - switch OFF
     fn switch_hv_output(&self, ecp5: &mut ECP5, state: bool){
         if state {
-            ecp5.write_outputs(self.slot, &[0, 0b0011_0000]); // enable hv
+            ecp5.write_outputs(self.slot, &[0, 0b0011_0000]);
             log::info!("IO switch ON");
             // TODO(Adrian) - enable HV output with MAX
-            //Max1329::set_dpio_setup_register(self.slot, ecp5, 0xF0);
+            Max1329::set_dpio_setup_register(self.slot, ecp5, 0xF0);
         } else {
-            ecp5.write_outputs(self.slot, &[0, 0b0000_0000]); // enable hv
+            ecp5.write_outputs(self.slot, &[0, 0b0000_0000]);
             log::info!("IO switch OFF");
             // TODO(Adrian) - enable HV output with MAX
-            //Max1329::set_dpio_setup_register(self.slot, ecp5, 0xFF);
+            Max1329::set_dpio_setup_register(self.slot, ecp5, 0xFF);
+        }
+    }
+
+    fn wait_for_spi(&self, ecp5: &mut ECP5) {
+        let mut data: [u8; 2] = [0; 2];
+        
+        let address = ecp5::OFFSET_TO_SLOT * self.slot + ecp5::OFFSET_TO_SPI + ecp5::SPI::IDLE;
+        ecp5.read_from_ecp5(address, &mut data).unwrap();
+        while data[1] != 1 {
+            log::info!("HVSUP waiting for SPI");
+            ecp5.read_from_ecp5(address, &mut data).unwrap();
         }
     }
 }
@@ -223,11 +234,14 @@ impl HVSUP_ISOL<$variant>
 impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
     fn init(&mut self, ecp5: &mut ECP5) -> bool {
         // Configure firts MAX1329 APIO as SPI extender
-        ecp5.set_spi_cs_pol(self.slot, 0);
+        Max1329::setup_ecp5_spi_master(self.slot, ecp5, 1);
+        self.wait_for_spi(ecp5);
+        Max1329::setup_spi_cs_pol(self.slot, ecp5, 0);
         Max1329::set_apio_control_register(self.slot, ecp5, u8::MAX);
         for i in 0..2 {
             if i == 1 {
-                ecp5.set_spi_cs_pol(self.slot, 1);
+                self.wait_for_spi(ecp5);
+                Max1329::setup_spi_cs_pol(self.slot, ecp5, 1);
             }
 
             // Turn HV output off
@@ -264,36 +278,72 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
 
             // Change CS pol for first Max again (default for idle)
             if i == 1{
-                ecp5.set_spi_cs_pol(self.slot, 0);
+                self.wait_for_spi(ecp5);
+                Max1329::setup_spi_cs_pol(self.slot, ecp5, 0);
             }
         }
+        // TODO - remove
+        // REG TEST
+        self.wait_for_spi(ecp5);
+        Max1329::setup_spi_cs_pol(self.slot, ecp5, 0);
+        Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::ADD));
+        self.wait_for_spi(ecp5);
+        Max1329::setup_spi_cs_pol(self.slot, ecp5, 1);
+        Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::AFF));
+        self.wait_for_spi(ecp5);
+        log::info!("INIT3");
+        Max1329::setup_spi_cs_pol(self.slot, ecp5, 0);
+        let max1 = Max1329::read_interrrupt_mask_register(self.slot, ecp5);
+        self.wait_for_spi(ecp5);
+        log::info!("INIT2");
+        Max1329::setup_spi_cs_pol(self.slot, ecp5, 1);
+        let max2 = Max1329::read_interrrupt_mask_register(self.slot, ecp5);
+        self.wait_for_spi(ecp5);
+        log::info!("INIT1");
+        Max1329::setup_spi_cs_pol(self.slot, ecp5, 0);
+        log::info!("Max1 int flags: {}-{}-{}", max1[0], max1[1], max1[2]);
+        log::info!("Max2 int flags: {}-{}-{}", max2[0], max2[1], max2[2]);
 
         true
     }
 
     fn settings_update(&mut self, ecp5: &mut ECP5, new_settings: Settings) -> () {
+        self.wait_for_spi(ecp5);
         ecp5.set_spi_cs_pol(self.slot, 0);
         for i in 0..2 {
             if i == 1 {
+                self.wait_for_spi(ecp5);
                 ecp5.set_spi_cs_pol(self.slot, 1);
             }
 
-            if self.settings.channels_settings[i].enable != new_settings.channels_settings[i].enable{
+            if self.settings.channels_settings[i].enable != new_settings.channels_settings[i].enable {
                 self.switch_hv_output(ecp5, new_settings.channels_settings[i].enable);
             }
 
             // Change DACA value ( U )
-            if self.settings.channels_settings[i].u_ctrl != new_settings.channels_settings[i].u_ctrl{ // TODO change slot number 1 to self.slot
-                Max1329::set_daca_value(self.slot, ecp5, new_settings.channels_settings[i].u_ctrl);
+            if self.settings.channels_settings[i].u_ctrl != new_settings.channels_settings[i].u_ctrl {
+                const U_MAX: f64 = 1500.0;
+                const DAC_MAX: f64 = 0b111111111111 as f64;
+                let new_u = new_settings.channels_settings[i].u_ctrl as f64;
+                let u_control = (new_u / U_MAX * DAC_MAX) as u16;
+                log::info!("Setting DAC-A to: {}", u_control);
+
+                Max1329::set_daca_value(self.slot, ecp5, u_control);
             }
 
             // Change DACB value ( I )
             if self.settings.channels_settings[i].i_ctrl != new_settings.channels_settings[i].i_ctrl{
-                Max1329::set_dacb_value(self.slot, ecp5, new_settings.channels_settings[i].i_ctrl);
+                const I_MAX: f64 = 15.0;
+                const DAC_MAX: f64 = 0b111111111111 as f64;
+                let new_i = new_settings.channels_settings[i].i_ctrl as f64;
+                let i_control = (new_i / I_MAX * DAC_MAX) as u16;
+                log::info!("Setting DAC-B to: {}", i_control);
+                Max1329::set_dacb_value(self.slot, ecp5, i_control);
             }
 
             // Change CS pol to first Max again (default for idle)
             if i == 1 {
+                self.wait_for_spi(ecp5);
                 ecp5.set_spi_cs_pol(self.slot, 0);
             }
             // ADC Gain will be changed when receiveng next sample
@@ -302,9 +352,11 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
     }
 
     fn telemetry(&mut self, ecp5: &mut ECP5) -> (Telemetry, u16) {
+        self.wait_for_spi(ecp5);
         ecp5.set_spi_cs_pol(self.slot, 0);
         for i in 0..2 {
             if i == 1 {
+                self.wait_for_spi(ecp5);
                 ecp5.set_spi_cs_pol(self.slot, 1);
             }
 
@@ -323,6 +375,7 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
             self.telemetry.i_meas[i] = Max1329::read_adc_data_register(self.slot, ecp5);
 
             if i == 1 {
+                self.wait_for_spi(ecp5);
                 ecp5.set_spi_cs_pol(self.slot, 0);
             }
         }

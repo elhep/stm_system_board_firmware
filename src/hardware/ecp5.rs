@@ -123,7 +123,7 @@ impl ECP5 {
 
     pub fn set_spi_cs_pol(&mut self,
                           _slot_number : u8,
-                          _pol : u8){
+                          _pol : u8) {
         //TODO wrtie proper write_to_ecp5
     }
 
