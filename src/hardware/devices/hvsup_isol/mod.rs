@@ -268,11 +268,11 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
     }
 
     fn settings_update(&mut self, ecp5: &mut ECP5, new_settings: Settings) -> () {
-        for i in 0..1{ // TODO change for loop 0..2 after tests
-            log::info!("Settings loop");
+
+        for i in 0..2{
             // Change CS pol for second Max
             if i == 1{
-                ecp5.set_spi_cs_pol(self.slot, 1);
+                ecp5.set_spi_cs_pol(1, 1); // TODO change to self.slot
             }
 
             if self.settings.channels_settings[i].enable != new_settings.channels_settings[i].enable{
@@ -283,57 +283,76 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
             if self.settings.channels_settings[i].u_ctrl != new_settings.channels_settings[i].u_ctrl{ // TODO change slot number 1 to self.slot
                 Max1329::set_daca_value(1, ecp5, new_settings.channels_settings[i].u_ctrl);
             }
+            log::info!("MAX {}", i);
+            log::info!("DACA value: {}", new_settings.channels_settings[i].u_ctrl);
+            log::info!("DACA: {}", Max1329::read_daca_value(1, ecp5));
 
             // Change DACB value ( I )
             if self.settings.channels_settings[i].i_ctrl != new_settings.channels_settings[i].i_ctrl{
                 Max1329::set_dacb_value(1, ecp5, new_settings.channels_settings[i].i_ctrl);
             }
 
+            log::info!("DACB value: {}", new_settings.channels_settings[i].i_ctrl);
+            log::info!("DACB: {}", Max1329::read_dacb_value(1, ecp5));
+
             // Change CS pol to first Max again (default for idle)
             if i == 1{
-                ecp5.set_spi_cs_pol(self.slot, 0);
+                ecp5.set_spi_cs_pol(1, 0); // TODO change to self.slot
             }
             // ADC Gain will be changed when receiveng next sample
         }
+
         self.settings = new_settings;
-        log::info!("Exit Settings");
+        log::info!("KONIEC SETTINGS UPDATE");
     }
 
     fn telemetry(&mut self, ecp5: &mut ECP5) -> (Telemetry, u16) {
+
+        for i in 0..2{
+            if i == 1{
+                ecp5.set_spi_cs_pol(1, 1); // TODO change to self.slot
+            }
+
             Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
             while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
                 log::info!("W8 for ADC");
             }
             let x = Max1329::read_adc_data_register(1, ecp5);
-            self.telemetry.u_meas[0] = AdcCode(x.0);
+            self.telemetry.u_meas[i] = AdcCode(x.0);
 
             Max1329::set_adc_setup_direct(1,
             ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
 
             let x = Max1329::read_adc_data_register(1, ecp5);
-            self.telemetry.i_meas[0] = AdcCode(x.0);
+            self.telemetry.i_meas[i] = AdcCode(x.0);
 
-            (self.telemetry.finalize(hvsup_telemetry!($variant)),
-             self.settings.telemetry_period)
+            if i == 1{
+                ecp5.set_spi_cs_pol(1, 0); // TODO change to self.slot
+            }
+        }
+
+
+        (self.telemetry.finalize(hvsup_telemetry!($variant)),
+         self.settings.telemetry_period)
 
     }
     fn check_interrupt(&mut self, ecp5: &mut ECP5){
         for i in 0..2{
             // Change CS pol for second Max
-            if i == 1{
-                ecp5.set_spi_cs_pol(self.slot, 1);
-            }
+            // if i == 1{
+            //     ecp5.set_spi_cs_pol(self.slot, 1);
+            // }
 
             let status : u32 = Max1329::read_status_register(self.slot, ecp5);
 
-            if (status & max1329::ADD) != 0 {
-                    self.read_adc_data(ecp5, i);
-            }
+            // if (status & max1329::ADD) != 0 {
+            //         self.read_adc_data(ecp5, i);
+            // }
 
             // Change CS pol for first Max again (default for idle)
-            if i == 1{
-                ecp5.set_spi_cs_pol(self.slot, 0);
-            }
+            // if i == 1{
+            //     ecp5.set_spi_cs_pol(self.slot, 0);
+            // }
         }
     }
 }
