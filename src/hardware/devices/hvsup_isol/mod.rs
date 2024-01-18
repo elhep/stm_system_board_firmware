@@ -236,12 +236,12 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
         // Configure firts MAX1329 APIO as SPI extender
         Max1329::setup_ecp5_spi_master(self.slot, ecp5, 1);
         self.wait_for_spi(ecp5);
-        Max1329::setup_spi_cs_pol(self.slot, ecp5, 0);
+        ecp5.set_spi_cs_pol(self.slot, 0);
         Max1329::set_apio_control_register(self.slot, ecp5, u8::MAX);
         for i in 0..2 {
             if i == 1 {
                 self.wait_for_spi(ecp5);
-                Max1329::setup_spi_cs_pol(self.slot, ecp5, 1);
+                ecp5.set_spi_cs_pol(self.slot, 1);
             }
 
             // Turn HV output off
@@ -279,28 +279,28 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
             // Change CS pol for first Max again (default for idle)
             if i == 1{
                 self.wait_for_spi(ecp5);
-                Max1329::setup_spi_cs_pol(self.slot, ecp5, 0);
+                ecp5.set_spi_cs_pol(self.slot, 0);
             }
         }
         // TODO - remove
         // REG TEST
         self.wait_for_spi(ecp5);
-        Max1329::setup_spi_cs_pol(self.slot, ecp5, 0);
+        ecp5.set_spi_cs_pol(self.slot, 0);
         Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::ADD));
         self.wait_for_spi(ecp5);
-        Max1329::setup_spi_cs_pol(self.slot, ecp5, 1);
+        ecp5.set_spi_cs_pol(self.slot, 1);
         Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::AFF));
         self.wait_for_spi(ecp5);
         log::info!("INIT3");
-        Max1329::setup_spi_cs_pol(self.slot, ecp5, 0);
+        ecp5.set_spi_cs_pol(self.slot, 0);
         let max1 = Max1329::read_interrrupt_mask_register(self.slot, ecp5);
         self.wait_for_spi(ecp5);
         log::info!("INIT2");
-        Max1329::setup_spi_cs_pol(self.slot, ecp5, 1);
+        ecp5.set_spi_cs_pol(self.slot, 1);
         let max2 = Max1329::read_interrrupt_mask_register(self.slot, ecp5);
         self.wait_for_spi(ecp5);
         log::info!("INIT1");
-        Max1329::setup_spi_cs_pol(self.slot, ecp5, 0);
+        ecp5.set_spi_cs_pol(self.slot, 0);
         log::info!("Max1 int flags: {}-{}-{}", max1[0], max1[1], max1[2]);
         log::info!("Max2 int flags: {}-{}-{}", max2[0], max2[1], max2[2]);
 
