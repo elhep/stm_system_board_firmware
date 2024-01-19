@@ -97,107 +97,9 @@ mod app {
 
         let _i2c = stm_sys_board.therm_i2c;
         let _i2c_bp = stm_sys_board.cpcis_i2c;
-        let device0 = Device0Type::new(5);
         let mut servmod = stm_sys_board.servmod;
-        // let mut array : [u8; 2] = [0x00, 0x00];
-
-
-        servmod.4.set_high().unwrap();
-        servmod.4.set_low().unwrap();
-
-        log::info!("Konfiguracja SPI dla slotu 2 (realnie 5)");
-        Max1329::setup_ecp5_spi_master(1, &mut ecp5, 1);
-
-
-        ecp5.write_oe(1, &[0, 0b0011_0000]);  // driving PSU_EN to 1 + HV EN
-        ecp5.write_outputs(1, &[0, 0b0000_0000]); // enable hv
-
-        log::info!("APIO MAX2: {}", Max1329::read_apio_control_register(1, &mut ecp5));
-        ecp5.set_spi_cs_pol(1, 1);
-        log::info!("APIO MAX1: {}", Max1329::read_apio_control_register(1, &mut ecp5));
-        ecp5.set_spi_cs_pol(1, 0);
-
-        Max1329::set_apio_control_register(1, &mut ecp5, 0b1111_1111);
-        // log::info!("MAX 1:");
-        // log::info!("{}", Max1329::read_interrrupt_mask_register(1, &mut ecp5)[0]);
-        // Max1329::set_interrupt_mask_register(1, &mut ecp5, 65536);
-        // log::info!("{}", Max1329::read_interrrupt_mask_register(1, &mut ecp5)[0]);
-        // //Max1329::setup_spi_cs_pol(1, &mut ecp5, 1);
-        // ecp5.set_spi_cs_pol(1,1);
-        //             log::info!("MAX 2:");
-        // log::info!("{}", Max1329::read_interrrupt_mask_register(1, &mut ecp5)[0]);
-        // Max1329::set_interrupt_mask_register(1, &mut ecp5, 131072);
-        // log::info!("{}", Max1329::read_interrrupt_mask_register(1, &mut ecp5)[0]);
-        // log::info!("MAX 1:");
-        // ecp5.set_spi_cs_pol(1,0);
-        // log::info!("{}", Max1329::read_interrrupt_mask_register(1, &mut ecp5)[0]);
-        // panic!("bo tak");
-
-        struct Variables {
-            pub cpvm_reg: u8,
-            pub reference: max1329::adc::RefConf,
-        }
-
-        let variables = Variables{ // External ref not burned but still have to setup internal punp
-            cpvm_reg: 0b1100_1001,
-            reference: max1329::adc::RefConf::ExtBuffOff,
-        };
-
-        Max1329::set_cpvm_control_register(1, &mut ecp5, variables.cpvm_reg);
-
-        #[allow(dead_code)]
-        fn test_dac(ecp: &mut ECP5){
-            log::info!("SET_DAC_CONTROL");
-            Max1329::set_dac_control(1,  ecp,
-                          max1329::dac::PowerDownConf::InOut,
-                          max1329::dac::PowerDownConf::InOut,
-                          max1329::dac::OpAmp::Disable,
-                          max1329::dac::RefConf::ExtBuffOff);
-            // log::info!("SET_DACA_VALUE");
-            let daca_value = 0b0000_0000_0000_0000;
-            let dacb_value = 0b0000_0000_0000_0000;
-            Max1329::set_daca_value(1, ecp, daca_value);
-            Max1329::set_dacb_value(1, ecp, dacb_value);
-
-        }
-
-        // //    -------------------------:::::::  ADC DAC CONFIG MAX 1  :::::::-------------------------
-
-        // Max1329::set_interrupt_mask_register(1, &mut ecp5, 0b1110_1111_1111_1111_1111_1111); // unmask ADC done
-        Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, variables.reference);
-        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-
-
-        Max1329::set_dpio_control_register(1, &mut ecp5, 0xFFFF);  // outputs
-        Max1329::set_dpio_setup_register(1, &mut ecp5, 0x00);      // all low
-
-        test_dac(&mut ecp5);
-
-        // //    -------------------------:::::::  ADC DAC CONFIG MAX 2  :::::::-------------------------
-        // //
-        log::info!("SECOND MAX: 1st step: APIO MODE");
-        //Max1329::set_apio_control_register(1, &mut ecp5, 0b1111_1111);
-
-        ecp5.set_spi_cs_pol(1, 1);
-        Max1329::set_dpio_control_register(1, &mut ecp5, 0xFFFF);  // outputs
-        Max1329::set_dpio_setup_register(1, &mut ecp5, 0x00);      // all low
-
-        let variables = Variables{ // External ref not burned but still have to setup internal punp
-            cpvm_reg: 0b1100_1001,
-            reference: max1329::adc::RefConf::ExtBuffOff,
-        };
-        Max1329::set_cpvm_control_register(1, &mut ecp5, variables.cpvm_reg);
-        // //
-        // Max1329::set_interrupt_mask_register(1, &mut ecp5, 0b1110_1111_1111_1111_1111_1111); // unmask ADC done
-        Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, variables.reference);
-        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-
-        test_dac(&mut ecp5);
-
-        ecp5.set_spi_cs_pol(1, 0);
-
-
-
+        let mut device0 = Device0Type::new(5, _i2c_bp, servmod);
+        device0.init(&mut ecp5);
 
         let shared = Shared {
             network,
@@ -209,7 +111,6 @@ mod app {
 
         let local = Local {
             exti_pin0: exti_pins.0,
-            // i2c,
         };
 
         //settings_update::spawn().unwrap();

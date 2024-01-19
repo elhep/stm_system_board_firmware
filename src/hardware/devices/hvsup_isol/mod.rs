@@ -2,12 +2,16 @@ use crate::hardware::devices::Variants;
 use miniconf::Miniconf;
 use crate::hardware::devices::max1329::adc::{self, AdcCode};
 use serde::Serialize;
+use stm32h7xx_hal as hal;
+use crate::hardware::ServMod;
+use crate::hardware::lm75a;
 
 pub mod hvsuppospos;
 pub mod hvsupnegneg;
 pub mod hvsupposneg;
 pub mod hvsupnegpos;
 
+type Cpcis_I2C = hal::i2c::I2c<hal::stm32::I2C4>;
 
 #[derive(Copy, Clone)]
 pub struct TelemetryBuffer{
@@ -18,6 +22,7 @@ pub struct TelemetryBuffer{
     i_meas: [AdcCode; 2],
     /// Current state of ADCs input Multiplexers (MAX1 / MAX2).
     current_meas: [adc::Mux; 2],
+    // Current temperature
 }
 
 impl Default for TelemetryBuffer{
@@ -39,10 +44,11 @@ impl TelemetryBuffer{
     ///
     /// # Returns
     /// The finalized telemetry structure that can be serialized and reported.
-    pub fn finalize(self, output_variants: [OutputVariant; 2]) -> Telemetry{
+    pub fn finalize(self, output_variants: [OutputVariant; 2], temp: f32) -> Telemetry{
         Telemetry {
             channels: [HvChannelTelemetry::new(output_variants[0], self.u_meas[0], self.i_meas[0]),
-                       HvChannelTelemetry::new(output_variants[1], self.u_meas[1], self.i_meas[1])]
+                       HvChannelTelemetry::new(output_variants[1], self.u_meas[1], self.i_meas[1])],
+            temp
         }
     }
 }
@@ -51,6 +57,7 @@ impl TelemetryBuffer{
 #[derive(Serialize)]
 pub struct Telemetry {
     channels: [HvChannelTelemetry; 2],
+    temp: f32,
 }
 
 #[derive(Serialize)]
@@ -58,7 +65,7 @@ pub struct HvChannelTelemetry{
     voltage_v: f32,
     voltage_b: u16,
     current_a: f32,
-    current_b: u16
+    current_b: u16,
 }
 
 impl HvChannelTelemetry{
@@ -71,7 +78,7 @@ impl HvChannelTelemetry{
                    voltage_v: voltage,
                    voltage_b: u_meas.0,
                    current_a: current,
-                   current_b: i_meas.0
+                   current_b: i_meas.0,
                }
            }
            OutputVariant::Negative => {
@@ -79,7 +86,7 @@ impl HvChannelTelemetry{
                    voltage_v: -voltage,
                    voltage_b: u_meas.0,
                    current_a: -current,
-                   current_b: i_meas.0
+                   current_b: i_meas.0,
                 }
             }
         }
@@ -131,6 +138,8 @@ pub struct HVSUP_ISOL<T: Variants>
     slot: u8,
     pub settings: T::VariantSettings,
     pub telemetry: T::VariantTelemetryBuffer,
+    cpcis_i2c: Cpcis_I2C,
+    servmod: ServMod,
 }
 
 impl <T> HVSUP_ISOL <T>
@@ -139,17 +148,19 @@ where
 {
     pub fn new(
         slot_number : u8,
+        cpcis_i2c : Cpcis_I2C,
+        servmod : ServMod,
     ) -> Self
     {
         Self{
             slot: 1,
             settings: T::VariantSettings::default(),
             telemetry: T::VariantTelemetryBuffer::default(),
+            cpcis_i2c,
+            servmod
         }
     }
 }
-
-
 
 #[macro_export]
 macro_rules! hvsup_telemetry {
@@ -182,6 +193,7 @@ macro_rules! hvsup_telemetry {
 
 impl HVSUP_ISOL<$variant>
 {
+    const THERM_ADDRESS: u8 = 0x48;
     /// Read new ADC sample and change state of the MUX
     fn read_adc_data(&mut self, ecp5: &mut ECP5, max_nr: usize){
         if self.telemetry.current_meas[max_nr] == adc::Mux::AIN1_AGND{
@@ -229,12 +241,58 @@ impl HVSUP_ISOL<$variant>
             ecp5.read_from_ecp5(address, &mut data).unwrap();
         }
     }
+
+    fn read_temp(&mut self) -> f32 {
+        self.switch_servmod(true);
+        let ret = match lm75a::read_temp(&mut self.cpcis_i2c, HVSUP_ISOL::THERM_ADDRESS) {
+            Ok(val) => val,
+            Err(_) => {
+                log::info!("HVSUP failed to read temp!");
+                0.0
+            }
+        };
+        self.switch_servmod(false);
+        ret
+    }
+
+    fn switch_servmod(&mut self, on: bool) {
+        self.servmod.0.set_low().unwrap();
+        self.servmod.1.set_low().unwrap();
+        self.servmod.2.set_low().unwrap();
+        self.servmod.3.set_low().unwrap();
+        self.servmod.4.set_low().unwrap();
+        self.servmod.5.set_low().unwrap();
+        self.servmod.6.set_low().unwrap();
+        self.servmod.7.set_low().unwrap();
+
+        if (!on) {
+            return
+        }
+
+        if (self.slot == 1) {
+            self.servmod.0.set_high().unwrap();
+        } else if (self.slot == 2) {
+            self.servmod.1.set_high().unwrap();
+        } else if (self.slot == 3) {
+            self.servmod.2.set_high().unwrap();
+        } else if (self.slot == 4) {
+            self.servmod.3.set_high().unwrap();
+        } else if (self.slot == 5) {
+            self.servmod.4.set_high().unwrap();
+        } else if (self.slot == 6) {
+            self.servmod.5.set_high().unwrap();
+        } else if (self.slot == 7) {
+            self.servmod.6.set_high().unwrap();
+        } else if (self.slot == 8) {
+            self.servmod.7.set_high().unwrap();
+        }
+    }
 }
 
 impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
     fn init(&mut self, ecp5: &mut ECP5) -> bool {
         // Configure firts MAX1329 APIO as SPI extender
-        Max1329::setup_ecp5_spi_master(self.slot, ecp5, 1);
+        ecp5.set_spi_cs_pol(self.slot, 0);
         self.wait_for_spi(ecp5);
         ecp5.set_spi_cs_pol(self.slot, 0);
         Max1329::set_apio_control_register(self.slot, ecp5, u8::MAX);
@@ -291,15 +349,12 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
         ecp5.set_spi_cs_pol(self.slot, 1);
         Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::AFF));
         self.wait_for_spi(ecp5);
-        log::info!("INIT3");
         ecp5.set_spi_cs_pol(self.slot, 0);
         let max1 = Max1329::read_interrrupt_mask_register(self.slot, ecp5);
         self.wait_for_spi(ecp5);
-        log::info!("INIT2");
         ecp5.set_spi_cs_pol(self.slot, 1);
         let max2 = Max1329::read_interrrupt_mask_register(self.slot, ecp5);
         self.wait_for_spi(ecp5);
-        log::info!("INIT1");
         ecp5.set_spi_cs_pol(self.slot, 0);
         log::info!("Max1 int flags: {}-{}-{}", max1[0], max1[1], max1[2]);
         log::info!("Max2 int flags: {}-{}-{}", max2[0], max2[1], max2[2]);
@@ -379,8 +434,9 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
                 ecp5.set_spi_cs_pol(self.slot, 0);
             }
         }
+        let temp = self.read_temp();
 
-            (self.telemetry.finalize(hvsup_telemetry!($variant)),
+            (self.telemetry.finalize(hvsup_telemetry!($variant), temp),
              self.settings.telemetry_period)
 
     }
