@@ -169,57 +169,39 @@ mod app {
         let mut back_plane = BackPlaneI2C{i2c: i2c_bp, servmod};
         silpa_detector.set_coefficients(device0.slot, &mut back_plane.i2c, &mut back_plane.servmod);
 
-        log::info!("Silpa I2C test done");
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
             400000000,
         ));
 
-        log::info!("Odbieranie ID od ECP5");
         delay.delay_ms(1000 as u32);
         ecp5.read_from_ecp5(40, &mut array).unwrap();
-        log::info!("Odebrane id1: {} {}", array[0], array[1]);
         ecp5.read_from_ecp5(41, &mut array).unwrap();
-        log::info!("Odebrane id2: {} {}", array[0], array[1]);
-
-        log::info!("Odczyt inputów ze slotu 1");
         ecp5.read_inputs(1, &mut array);
-        log::info!("Odebrane stany wejściowe: {} {}", array[0], array[1]);
 
-        log::info!("Konfiguracja SPI dla slotu 2 (realnie 5)");
         Max1329::setup_ecp5_spi_master(1, &mut ecp5, 0);
 
 
         Max1329::reset_device(1, &mut ecp5);
-        //delay.delay_ms(100000 as u32);
+        delay.delay_ms(1000 as u32);
 
         // -----------------------------------------------------------------------
-        // Clock Control
-        log::info!("Próba Zapisu do Clock Control Register");
+        // Clock Control Register
         Max1329::set_clock_control_register(1, &mut ecp5, 0b0100_0011);
-        log::info!("Potwierdzenie zapisania poprawnej wartości");
-        let x = Max1329::read_clock_control_register(1, &mut ecp5);
-        log::info!("Clock control REG: {} - should be {}", x, 0b0100_0011);
+        let _x = Max1329::read_clock_control_register(1, &mut ecp5);
         // -----------------------------------------------------------------------
 
 
         // -----------------------------------------------------------------------
         // GT Alarm
-        log::info!("Próba Zapisu do GT Alarm Register");
         Max1329::set_adc_gt_alarm_register(1, &mut ecp5, max1329::adc::AlarmMode::Consecutive, 8, 1000);
-        log::info!("Potwierdzenie zapisania poprawnej wartości");
-        let x = Max1329::read_adc_gt_alarm_register(1, &mut ecp5);
-        log::info!("GT Alarm REG: {} - should be {}", x, 62440);
+        let _x = Max1329::read_adc_gt_alarm_register(1, &mut ecp5);
         // 1000 jest ustawione jako wartosc testowa
         // -----------------------------------------------------------------------
 
         // -----------------------------------------------------------------------
         // LT Alarm
-        log::info!("Próba Zapisu do LT Alarm Register");
         Max1329::set_adc_lt_alarm_register(1, &mut ecp5, max1329::adc::AlarmMode::Consecutive, 8, 500);
-        log::info!("Potwierdzenie zapisania poprawnej wartości");
-        let x = Max1329::read_adc_lt_alarm_register(1, &mut ecp5);
-        log::info!("LT Alarm REG: {} - should be {}", x, 61940);
-        // 1000 jest ustawione jako wartosc testowa
+        let _x = Max1329::read_adc_lt_alarm_register(1, &mut ecp5);
         // -----------------------------------------------------------------------
 
         // -----------------------------------------------------------------------
@@ -331,7 +313,7 @@ mod app {
         }
     }
 
-    #[task(priority = 1, shared=[network, ecp5, device0, silpa_detector])]
+    #[task(priority = 1, shared=[network, ecp5, device0, silpa_detector, back_plane])]
     fn settings_update(c: settings_update::Context) {
         log::info!("----------- Settings Update --------------");
         let settings_update::SharedResources{
@@ -339,23 +321,46 @@ mod app {
             mut ecp5, 
             mut network,
             silpa_detector,
+            back_plane
         } = c.shared;
         let settings = network.lock(|net| *net.miniconf.settings());
 
         (ecp5).lock(|ecp5| {
             match settings.device0_settings() {
-                Some(dev_settings) => {(device0, silpa_detector).lock(|device0, silpa_detector| (
+                Some(dev_settings) => {(device0, silpa_detector, back_plane).lock(|device0, silpa_detector, back_plane| (
                     if device0.settings.dacs_value[0] != dev_settings.dacs_value[0] {
+                        log::info!("Zmiana wartosci Threshold CH1: {}", dev_settings.dacs_value[0]);
                         device0.calculate_dac_value(silpa_detector.channel_1_slope, silpa_detector.channel_1_intercept, dev_settings.dacs_value[0], 1, ecp5)
                     },
 
                     if device0.settings.dacs_value[1] != dev_settings.dacs_value[1] {
+                        log::info!("Zmiana wartosci Threshold CH2: {}", dev_settings.dacs_value[1]);
                         device0.calculate_dac_value(silpa_detector.channel_1_slope, silpa_detector.channel_1_intercept, dev_settings.dacs_value[1], 2, ecp5)
+                    },
+
+                    if device0.settings.channels_tos[0] != dev_settings.channels_tos[0]{
+                        log::info!("Zmiana wartosci TOS CH1: {}", dev_settings.channels_tos[0]);
+                        hardware::lm75a::set_tos(&mut back_plane.i2c, hardware::lm75a::I2C_ADDR[0], dev_settings.channels_tos[0])
+                    },
+
+                    if device0.settings.channels_tos[1] != dev_settings.channels_tos[1]{
+                        log::info!("Zmiana wartosci TOS CH2: {}", dev_settings.channels_tos[1]);
+                        hardware::lm75a::set_tos(&mut back_plane.i2c, hardware::lm75a::I2C_ADDR[1], dev_settings.channels_tos[1])
+                    },
+
+                    if device0.settings.channels_thyst[0] != dev_settings.channels_thyst[0]{
+                        log::info!("Zmiana wartosci THYST CH1: {}", dev_settings.channels_thyst[0]);
+                        hardware::lm75a::set_thyst(&mut back_plane.i2c, hardware::lm75a::I2C_ADDR[0], dev_settings.channels_thyst[0])
+                    },
+
+                    if device0.settings.channels_thyst[1] != dev_settings.channels_thyst[1]{
+                        log::info!("Zmiana wartosci THYST CH2: {}", dev_settings.channels_thyst[1]);
+                        hardware::lm75a::set_thyst(&mut back_plane.i2c, hardware::lm75a::I2C_ADDR[1], dev_settings.channels_thyst[1])
                     },
                     device0.settings_update(ecp5, dev_settings),
                     
                 ))},
-                None => {((), (), ())},
+                None => {((), (), (), (), (), (), ())},
             }
         });
     }
@@ -364,13 +369,17 @@ mod app {
     fn telemetry0(mut c: telemetry0::Context) {
         log::info!("----------- Telemetry --------------");
 
-        // let (_temperature_ch1, _temperature_ch2) = c.shared.back_plane.lock(|back_plane| c.shared.device0.lock(|device| (
-        //     (device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 1),
-        //     device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 2))
-        // )));
+        let (temperature_ch1, temperature_ch2) = c.shared.back_plane.lock(|back_plane| c.shared.device0.lock(|device| (
+            (device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 1),
+            device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 2))
+        )));
+
+        log::info!("Temp CH1 : {}", temperature_ch1);
+        log::info!("Temp CH2 : {}", temperature_ch2);
 
         let (telemetry, telemetry_period) = c.shared.ecp5.lock(|ecp5| c.shared.device0.lock(|device| 
-            (device.telemetry(ecp5)))
+            (
+            device.telemetry(ecp5)))
         );
 
         c.shared.network.lock(|net| {
@@ -401,10 +410,12 @@ mod app {
             (
                 if device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 1) > LM75_TEMPERATURE::TRESHOLD_CH1 {
                     device.settings.channels_locked[0] = true;
+                    log::info!("Przekroczenie temperatury CH1");
                 },
 
                 if device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 2) > LM75_TEMPERATURE::TRESHOLD_CH2 {
                     device.settings.channels_locked[1] = true;
+                    log::info!("Przekroczenie temperatury CH2");
                 },
 
                 device.check_interrupt(ecp5)

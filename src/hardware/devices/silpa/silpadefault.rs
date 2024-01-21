@@ -41,17 +41,20 @@ impl TelemetryBuffer{
         self.telemetry
     }
 
-    pub fn set_adc1_field(&mut self, val : AdcCode){
-        self.telemetry.adc1 = calculate_output_power(vrms_to_dbm_converter(bits_to_f32(val.0)));
+    pub fn set_ch1_output_power_field(&mut self, val : AdcCode){
+        self.telemetry.output_power[0] = calculate_output_power(vrms_to_dbm_converter(bits_to_f32(val.0)));
     }
 
-    pub fn set_adc2_field(&mut self, val : AdcCode){
-        self.telemetry.adc2 = calculate_output_power(vrms_to_dbm_converter(bits_to_f32(val.0)));
+    pub fn set_ch2_output_power_field(&mut self, val : AdcCode){
+        self.telemetry.output_power[1] = calculate_output_power(vrms_to_dbm_converter(bits_to_f32(val.0)));
     }
 
-    pub fn set_input_power(&mut self){
-        self.telemetry.input_power1 = self.telemetry.adc1 - AMPLIFIER_PARAMETERS::TOTAL_GAIN;
-        self.telemetry.input_power2 = self.telemetry.adc2 - AMPLIFIER_PARAMETERS::TOTAL_GAIN;
+    pub fn set_ch1_temperature(&mut self, temp : f32){
+        self.telemetry.channel_temperature[0] = temp;
+    }
+
+    pub fn set_ch2_temperature(&mut self, temp : f32){
+        self.telemetry.channel_temperature[2] = temp;
     }
 }
 
@@ -62,6 +65,8 @@ pub struct Settings{
     dacs_enable     : [bool; 2],
     pub dacs_value      : [f32; 2],  // max 0xFFF
     pub channels_locked : [bool; 2],
+    pub channels_tos : [f32; 2],
+    pub channels_thyst : [f32; 2],
     pub telemetry_period: u16,
 }
 
@@ -72,8 +77,10 @@ impl Default for Settings{
             adc_lt_threshold: 0x000,
             dacs_enable     : [false, false],
             channels_locked : [false, false],
+            channels_thyst  : [25.0, 25.0], // Temperatura powrotu do normalnej pracy
+            channels_tos    : [35.0, 35.0], // Temperatura odlaczenia kanalu z powodu przegrzania  
             dacs_value      : [0.0, 0.0],
-            telemetry_period: 10,
+            telemetry_period: 2,
         }
     }
 }
@@ -81,33 +88,25 @@ impl Default for Settings{
 
 #[derive(Serialize, Clone, Copy)]
 pub struct Telemetry{
-    adc1: f32,
-    adc2: f32,
-    input_power1: f32,
-    input_power2: f32
+    output_power: [f32; 2],
+    channel_temperature: [f32; 2]
 }
 
 impl Default for Telemetry{
     fn default() -> Self {
-        Self {  adc1: 0.0,
-                adc2: 0.0,
-                input_power1 : 0.0,
-                input_power2 : 0.0}
+        Self {  output_power : [0.0, 0.0],
+                channel_temperature : [0.0, 0.0]    
+            }
     }
 }
 
 impl Telemetry{
-    pub fn set_adc1_field(&mut self, val : u16){
-        self.adc1 = vrms_to_dbm_converter(bits_to_f32(val));
+    pub fn set_ch1_output_power_field(&mut self, val : u16){
+        self.output_power[0] = vrms_to_dbm_converter(bits_to_f32(val));
     }
 
-    pub fn set_adc2_field(&mut self, val : u16){
-        self.adc2 = vrms_to_dbm_converter(bits_to_f32(val));
-    }
-
-    pub fn set_input_power(&mut self){
-        self.input_power1 = self.adc1 - AMPLIFIER_PARAMETERS::TOTAL_GAIN;
-        self.input_power2 = self.adc2 - AMPLIFIER_PARAMETERS::TOTAL_GAIN;
+    pub fn set_ch2_output_power_field(&mut self, val : u16){
+        self.output_power[1] = vrms_to_dbm_converter(bits_to_f32(val));
     }
 
 }
@@ -193,45 +192,32 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             }         
         }
 
-        // if self.settings.dacs_value[0] != new_settings.dacs_value[0] {
-        //     let new_daca_value : u16;
-
-        //     Max1329::set_daca_value(self.slot, ecp5, new_settings.dacs_value[0]);
-        // }
-
-        // if self.settings.dacs_value[1] != new_settings.dacs_value[1] {
-        //     Max1329::set_dacb_value(self.slot, ecp5, new_settings.dacs_value[1]);
-        // }
-
         self.settings = new_settings;
     }
 
     fn telemetry(&mut self, ecp5: &mut ECP5) -> (Telemetry, u16) {
 
         // Odczyt ADC1
-        log::info!("Wewnatrz telemetry() ADC1");
+        // log::info!("Wewnatrz telemetry() ADC1");
         Max1329::set_adc_setup_register(1, ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
-            log::info!("W8 for ADC1 in Telemetry");
+            // log::info!("W8 for ADC1 in Telemetry");
         }
         
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
         log::info!("Wartosc z ADC1: {}", adc_val.0);
-        self.telemetry.set_adc1_field(adc_val);
+        self.telemetry.set_ch1_output_power_field(adc_val);
 
-        log::info!("Wewnatrz telemetry() ADC2");
         Max1329::set_adc_setup_register(1, ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
-            log::info!("W8 for ADC2 in Telemetry");
+            // log::info!("W8 for ADC2 in Telemetry");
         } 
 
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
         log::info!("Wartosc z ADC1: {}", adc_val.0);
-        self.telemetry.set_adc2_field(adc_val);
+        self.telemetry.set_ch2_output_power_field(adc_val);
         
-        self.telemetry.set_input_power();
-        
-        log::info!("Wewnatrz telemetry() Koniec");
+        // log::info!("Wewnatrz telemetry() Koniec");
         (self.telemetry.finalize(),
          self.settings.telemetry_period)
     }
@@ -285,7 +271,7 @@ impl SiLPA<SilpaDefault>
 
     // }
 
-    pub fn check_temperature<T>(&self, i2c: &mut T, servmod: &mut ServMod, channel : u8) -> f32
+    pub fn check_temperature<T>(&mut self, i2c: &mut T, servmod: &mut ServMod, channel : u8) -> f32
         where 
         T: Read,    
     { 
@@ -308,9 +294,14 @@ impl SiLPA<SilpaDefault>
             _ => log::info!("Incorrect Slot Number")
         };
 
-
         match hardware::lm75a::read_temp(i2c, address){ // Addr 0x48
             Ok(temp) => {
+                            match channel{
+                                1 => self.telemetry.set_ch1_temperature(temp),
+                                2 => self.telemetry.set_ch2_temperature(temp),
+                                _ => panic!("Incorrect channel number")
+                            }
+                            
                             match self.slot{
                                 1 => servmod.0.set_high().unwrap(), 
                                 2 => servmod.1.set_high().unwrap(),
@@ -391,6 +382,7 @@ pub fn calculate_input_power(output_dbm : f32) -> f32{
     let input_power = output_dbm - AMPLIFIER_PARAMETERS::TOTAL_GAIN;
     return input_power
 }
+
 
 
 
