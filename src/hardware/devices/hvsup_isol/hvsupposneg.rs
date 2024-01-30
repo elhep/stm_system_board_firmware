@@ -7,6 +7,7 @@ use crate::hardware::devices::{Variants, Devices};
 use crate::hardware::devices::max1329::{self, Max1329, dac};
 use crate::hardware::devices::max1329::adc::{self, AdcCode};
 use stm32h7xx_hal as hal;
+use embedded_hal::prelude::*;
 use embedded_hal::digital::v2::OutputPin;
 use crate::hardware::lm75a;
 

@@ -37,7 +37,6 @@ use stm_sys_board::net::settings::{Settings, Device0Type,
                                                DEVICE0_TELEMETRY_PREFIX,};
 // use embedded_hal::blocking::delay::DelayMs;
 
-
 //struct SysBoardTelemetry {
 //    temp: u16,
 //}
@@ -88,12 +87,11 @@ mod app {
             env!("CARGO_BIN_NAME"),
             stm_sys_board.net.mac_address,
             option_env!("BROKER")
-                .unwrap_or("192.168.95.145")
+                .unwrap_or("192.168.122.72")
                 .parse()
                 .unwrap(),
             Settings::default(),
         );
-
 
         let _i2c = stm_sys_board.therm_i2c;
         let _i2c_bp = stm_sys_board.cpcis_i2c;

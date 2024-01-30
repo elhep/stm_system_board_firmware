@@ -194,6 +194,7 @@ macro_rules! hvsup_telemetry {
 impl HVSUP_ISOL<$variant>
 {
     const THERM_ADDRESS: u8 = 0x48;
+    const EEPROM_ADDRESS: u8 = 0x50;
     /// Read new ADC sample and change state of the MUX
     fn read_adc_data(&mut self, ecp5: &mut ECP5, max_nr: usize){
         if self.telemetry.current_meas[max_nr] == adc::Mux::AIN1_AGND{
@@ -237,7 +238,6 @@ impl HVSUP_ISOL<$variant>
         let address = ecp5::OFFSET_TO_SLOT * self.slot + ecp5::OFFSET_TO_SPI + ecp5::SPI::IDLE;
         ecp5.read_from_ecp5(address, &mut data).unwrap();
         while data[1] != 1 {
-            log::info!("HVSUP waiting for SPI");
             ecp5.read_from_ecp5(address, &mut data).unwrap();
         }
     }
@@ -256,6 +256,7 @@ impl HVSUP_ISOL<$variant>
     }
 
     fn switch_servmod(&mut self, on: bool) {
+        self.slot = 5;
         self.servmod.0.set_low().unwrap();
         self.servmod.1.set_low().unwrap();
         self.servmod.2.set_low().unwrap();
@@ -266,6 +267,7 @@ impl HVSUP_ISOL<$variant>
         self.servmod.7.set_low().unwrap();
 
         if (!on) {
+            self.slot = 1;
             return
         }
 
@@ -286,13 +288,63 @@ impl HVSUP_ISOL<$variant>
         } else if (self.slot == 8) {
             self.servmod.7.set_high().unwrap();
         }
+        self.slot = 1;
+    }
+
+    fn read_device_name(&mut self) -> [u8; 10] {
+        // let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
+        //     400000000,
+        // ))  ;
+        self.switch_servmod(true);
+        let mut buff = [0u8; 10];
+        // self.cpcis_i2c.write(HVSUP_ISOL::EEPROM_ADDRESS, &[6, 72]);
+        // delay.delay_ms(100 as u32);
+        // self.cpcis_i2c.write(HVSUP_ISOL::EEPROM_ADDRESS, &[7, 86]);
+        // delay.delay_ms(100 as u32);
+        // self.cpcis_i2c.write(HVSUP_ISOL::EEPROM_ADDRESS, &[8, 83]);
+        // delay.delay_ms(100 as u32);
+        // self.cpcis_i2c.write(HVSUP_ISOL::EEPROM_ADDRESS, &[9, 85]);
+        // delay.delay_ms(100 as u32);
+        // self.cpcis_i2c.write(HVSUP_ISOL::EEPROM_ADDRESS, &[10, 80]);
+        // delay.delay_ms(100 as u32);
+        // self.cpcis_i2c.write(HVSUP_ISOL::EEPROM_ADDRESS, &[11, 95]);
+        // delay.delay_ms(100 as u32);
+        // self.cpcis_i2c.write(HVSUP_ISOL::EEPROM_ADDRESS, &[12, 73]);
+        // delay.delay_ms(100 as u32);
+        // self.cpcis_i2c.write(HVSUP_ISOL::EEPROM_ADDRESS, &[13, 83]);
+        // delay.delay_ms(100 as u32);
+        // self.cpcis_i2c.write(HVSUP_ISOL::EEPROM_ADDRESS, &[14, 79]);
+        // delay.delay_ms(100 as u32);
+        // self.cpcis_i2c.write(HVSUP_ISOL::EEPROM_ADDRESS, &[15, 76]);
+        // delay.delay_ms(100 as u32);
+        let ret = if self.cpcis_i2c.write_read(HVSUP_ISOL::EEPROM_ADDRESS, &[6], &mut buff).is_ok() {
+            // log::info!("Device name: {}-{}-{}-{}-{}-{}-{}-{}-{}-{}", buff[0], buff[1], buff[2], buff[3], buff[4], buff[5], buff[6],
+            // log::info!("Device name: \"{}\"", core::str::from_utf8(&buff).unwrap());
+            // buff[7], buff[8], buff[9]);
+            buff
+        } else {
+            log::info!("Failed to read eeprom!");
+            [0u8; 10]
+        };
+        self.switch_servmod(false);
+        ret
     }
 }
 
 impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
     fn init(&mut self, ecp5: &mut ECP5) -> bool {
         // Configure firts MAX1329 APIO as SPI extender
-        ecp5.set_spi_cs_pol(self.slot, 0);
+        let dev_name = self.read_device_name();
+        let dev_name = match core::str::from_utf8(&dev_name) {
+            Ok(name) => name,
+            Err(_) => return false,
+        };
+        if (dev_name != "HVSUP_ISOL") {
+            log::info!("HVSUP wrong board name");
+            return false;
+        }
+        log::info!("HVSUP correct board name");
+        Max1329::setup_ecp5_spi_master(1, ecp5, 1);
         self.wait_for_spi(ecp5);
         ecp5.set_spi_cs_pol(self.slot, 0);
         Max1329::set_apio_control_register(self.slot, ecp5, u8::MAX);
