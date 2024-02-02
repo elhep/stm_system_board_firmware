@@ -165,6 +165,11 @@ mod app {
             .unwrap();
     }
 
+    #[task(priority = 1, shared=[network, device0])]
+    fn mqtt_discovery0(mut c: mqtt_discovery0::Context) {
+       
+    }
+
 
     #[task(priority = 1, shared=[network])]
     fn ethernet_link(mut c: ethernet_link::Context) {
