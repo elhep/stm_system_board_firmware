@@ -68,6 +68,21 @@ impl TelemetryClient {
             .ok();
     }
 
+    // pub fn discovery_publish<T: Serialize>(&mut self, topic: &str, data: &T) {
+    //     let discovery_setup: Vec<u8, 512> =
+    //         serde_json_core::to_vec(data).unwrap();
+        
+    //     self.mqtt
+    //     .client
+    //     .publish(
+    //         &topic,
+    //         &discovery_setup,
+    //         QoS::AtMostOnce,
+    //         Retain::NotRetained,
+    //         &[],
+    //     )
+    //     .ok();
+    // }
     // pub fn subscribe(&mut self, topic: &str){
     //     let topic = topic.into();
     //     self.mqtt.client.subscribe(topic, &[]).ok();
@@ -108,6 +123,7 @@ pub fn get_tlm_topic(
     // they are defined too long, this will panic and the device will fail to boot.
     let mut full_topic: String<128> = String::new();
     write!(&mut full_topic, "{}/{}", topic, device).unwrap();
+    log::info!("{}", full_topic);
 
     full_topic
 }

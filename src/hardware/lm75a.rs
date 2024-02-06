@@ -32,15 +32,26 @@ where
 
 pub fn set_tos<T>(i2c: &mut T, dev_addr: u8, tos: f32) -> ()
 where 
-    T: WriteRead + Write,
+    T: Write,
 {
     let temp = (tos * 2.0) as u8;
 
     let mut buffer : [u8; 3] = [0; 3];
     buffer[0] = TOS_REG;
     buffer[1] = temp >> 1;
-    buffer[2] = (temp << 7) & 0x80;
+    buffer[2] = temp << 7;
     let _ = i2c.write(dev_addr, &buffer);
+}
+
+pub fn read_tos<T>(i2c: &mut T, dev_addr : u8) -> f32
+where 
+    T : WriteRead + Write + Read,
+{
+    let mut buffer : [u8; 2] = [0; 2];
+    let _ = i2c.write_read(dev_addr, &[TOS_REG], &mut buffer);
+    // let _ = i2c.read(dev_addr, &mut buffer);
+    log::info!("{}, {}", buffer[0], buffer[1]);
+    return (buffer[1] * 2) as f32;
 }
 
 pub fn set_thyst<T>(i2c: &mut T, dev_addr: u8, thyst: f32) -> ()

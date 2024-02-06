@@ -147,7 +147,7 @@ where
     let channel_2_slope: f32;
     let channel_2_intercept: f32;
 
-    let mut received_coefficients : [u8; 4] = [0; 4];  
+    let mut received_coefficients : [u8; 8] = [0; 8];  
 
     match i2c.write_read(I2C_ADDR, &[EEPROM_CHANNEL_1_COEFFICIENTS], &mut received_coefficients){
         Ok(()) => {
@@ -160,13 +160,16 @@ where
             channel_1_slope = f32::from_bits(var);
             log::info!("Channel_1_slope : {}", channel_1_slope);
             log::info!("Channel_1_slope : {}", channel_1_slope.to_bits());
-            channel_1_intercept = 0.0;
-            // ( 
-            //                     ((received_coefficients[4] as u32) << 24) |
-            //                     ((received_coefficients[5] as u32) << 16) |
-            //                     ((received_coefficients[6] as u32) << 8) |
-            //                     ((received_coefficients[7] as u32) << 0)
-            //                 ) as f32;    
+
+            let var =      ((received_coefficients[4] as u32) << 24) |
+                                ((received_coefficients[5] as u32) << 16) |
+                                ((received_coefficients[6] as u32) << 8) |
+                                ((received_coefficients[7] as u32) << 0);    
+            channel_1_intercept = f32::from_bits(var);
+            log::info!("Data po odczycie: {:#010b} {:#010b} {:#010b} {:#010b}", received_coefficients[4], received_coefficients[5], 
+            received_coefficients[6], received_coefficients[7]);
+            log::info!("Channel_1_intercept : {}", channel_1_intercept);
+            log::info!("Channel_1_intercept : {}", channel_1_intercept.to_bits());
 
             channel_2_slope = 0.0;
             // ( 

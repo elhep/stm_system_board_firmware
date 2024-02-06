@@ -149,9 +149,9 @@ mod app {
         hardware::eeprom::test_eeprom(&mut i2c_bp, 0b1010_000).unwrap();
 
         // let mut detector_coefficients : [f32; 4] = [0.0; 4];
-        log::info!("Poczatek testu EEPROM");
-        log::info!("-------------------------");
-        let mut detector_coefficients : [f32; 4] = [1.2, 0.22, 1.31, 0.25];
+        // log::info!("Poczatek testu EEPROM");
+        // log::info!("-------------------------");
+        let mut detector_coefficients : [f32; 4] = [1.2, 2.25, 1.31, 0.25];
         // log::info!("Wpisywane wartości do eepromu:");
         // log::info!("ch1_slope: {}", detector_coefficients[0].to_bits());
         // log::info!("ch1_intercept: {}", detector_coefficients[1].to_bits());
@@ -159,16 +159,31 @@ mod app {
         // log::info!("ch2_intercept: {}", detector_coefficients[3].to_bits());
         // (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(&mut i2c_bp);
         hardware::eeprom::test_example_coefficients(&mut i2c_bp, 0b1010_000, &mut detector_coefficients);
-        log::info!("-------------------------");
-        log::info!("Koniec testu EEPROM");
+        // log::info!("-------------------------");
+        // log::info!("Koniec testu EEPROM");
         let mut silpa_detector = hardware::eeprom::SiLPADetector::new(detector_coefficients[0],
                                                                                 detector_coefficients[1], 
                                                                                 detector_coefficients[2], 
                                                                                 detector_coefficients[3]);
+
+
+
         
         let mut back_plane = BackPlaneI2C{i2c: i2c_bp, servmod};
-        silpa_detector.set_coefficients(device0.slot, &mut back_plane.i2c, &mut back_plane.servmod);
 
+        log::info!("Ustawienie TOS w CH1: {}", 31.5);
+        hardware::lm75a::set_tos(&mut back_plane.i2c, 0b1001_000, 31.0);
+        hardware::lm75a::set_thyst(&mut back_plane.i2c, 0b1001_000, 31.0);
+        let tos = hardware::lm75a::read_tos(&mut back_plane.i2c, 0b1001_000);
+        log::info!("Ustawiona wartość TOS : {}", tos);
+
+        silpa_detector.set_coefficients(device0.slot, &mut back_plane.i2c, &mut back_plane.servmod); // Po tej funkcji servmod jest w stanie high
+
+        
+        log::info!("Ustawienie TOS w CH1: {}", 30.0);
+        hardware::lm75a::set_tos(&mut back_plane.i2c, 0b1001_000, 30.0);
+        let tos = hardware::lm75a::read_tos(&mut back_plane.i2c, 0b1001_000);
+        log::info!("Ustawiona wartość TOS : {}", tos);
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
             400000000,
         ));
@@ -206,23 +221,24 @@ mod app {
 
         // -----------------------------------------------------------------------
         // CPVM Control
-        struct Variables {
-            pub cpvm_reg: u8,
-            pub reference: max1329::adc::RefConf,
-        }
-        #[cfg(feature = "ext_ref_burned")]
-        let variables = Variables{
-            cpvm_reg: 0b0100_1001,
-            reference: max1329::adc::RefConf::Int2_5,
-        };
+        // struct Variables {
+        //     pub cpvm_reg: u8,
+        //     _reference: max1329::adc::RefConf,
+        // }
+        // #[cfg(feature = "ext_ref_burned")]
+        // let variables = Variables{
+        //     cpvm_reg: 0b0100_1001,
+        //     _reference: max1329::adc::RefConf::Int2_5,
+        // };
 
-        #[cfg(not(feature = "ext_ref_burned"))]
-        let variables = Variables{
-            cpvm_reg: 0b0100_0001,
-            reference: max1329::adc::RefConf::ExtBuffOff,
-        };
+        // #[cfg(not(feature = "ext_ref_burned"))]
+        // let variables = Variables{
+        //     cpvm_reg: 0b0100_0001,
+        //     _reference: max1329::adc::RefConf::ExtBuffOff,
+        // };
 
-        Max1329::set_cpvm_control_register(1, &mut ecp5, variables.cpvm_reg);
+        log::info!("Ustawiana wartosc cpvm_reg: {}", 0b0100_1001);
+        Max1329::set_cpvm_control_register(1, &mut ecp5, 0b0100_1001);
         // -----------------------------------------------------------------------
 
         #[allow(dead_code)]
@@ -233,38 +249,78 @@ mod app {
                           max1329::dac::OpAmp::Disable,
                           max1329::dac::RefConf::Int2_5);
 
-            Max1329::set_daca_value(1, ecp, 0b0000_0110_0000_0000);
+            Max1329::set_daca_value(1, ecp, 0b0000_0001_0100_1010); // 0.2 V na wyjsciu DAC, -2 dBm na wejsciu detektora,
             Max1329::set_dacb_value(1, ecp, 0b0000_1000_0000_0000);
+            log::info!("Ustawiono wartosc DAC");
 
         }
 
-        #[cfg(feature = "ext_ref_burned")]
+        // 0.08V Threshold -> ~-10dBm + 26 dB = 16 dBm output
+        // Warosc u16 = 0b0000_0000_1000_0011
+
+        let x = Max1329::read_daca_value(1, & mut ecp5);
+        log::info!("Wartosc daca: {}", x);
+
+        // #[cfg(feature = "ext_ref_burned")]
         test_dac(&mut ecp5);
+
+        let x = Max1329::read_daca_value(1, & mut ecp5);
+        log::info!("Wartosc daca: {}", x);
 
         //    -------------------------:::::::  ADC TESTS  :::::::-------------------------
 
         // Do testow ustawiony odczyt napiecia DVDD w ogolnosci MSEL = 0 i wartosci 0 oraz 1 tak aby miec odczyt AIN1 - AGND oraz AIN2 - AGND
 
         Max1329::set_interrupt_mask_register(1, &mut ecp5, 0b1110_1100_1111_1111_1111_1111); // unmask ADC done, GT, LT
+        Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, max1329::adc::RefConf::Int2_5);
+        
+        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        
+        
+        while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
+            log::info!("W8 for ADC");
+        }
+        let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        log::info!("ADC value for AIN1_GND {}", x.0);  
+
+        // Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+
+
+        // while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
+        //     log::info!("W8 for ADC");
+        // }
+
+        // let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        // log::info!("ADC value for DVDD {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
+
+
 
         // -----------------------------------------------------------------------   
+        // log::info!("Test ADC ma AVDD");
+        // Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {};
+        // let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        // log::info!("ADC value for AVDD {}", x.0);  
+
         // Wlaczenie odpowiednich odczytow miedzy AIN1-AGND i AIN2-AGND, odczekiwanie na koniec konwersji i odczyt wartosci z rejestru 
         // REFE = 1 wlacza internal reference
-        Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, variables.reference);
-        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, max1329::adc::RefConf::Int2_5);
+        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
-            log::info!("W8 for ADC");
         }
-        // let x = Max1329::read_adc_data_register(1, &mut ecp5);
-        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        log::info!("ADC value for AIN1_GND {}", x.0); 
+
+        Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
-            log::info!("W8 for ADC");
         }
-        // let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        let x = Max1329::read_adc_data_register(1, &mut ecp5);
+        log::info!("ADC value for AIN2_GND {}", x.0); 
         // -----------------------------------------------------------------------
 
         Max1329::set_dpio_control_register(1, &mut ecp5, 0xFFFF); // Ustawienie DPIO jako output, zmiany wartosci trzeba wpisac do DP_LL
-        Max1329::set_dpio_setup_register(1, &mut ecp5, 0x00); // Ustawienie wewnetrznych pullopow i wlaczenie wszystkich tranzystorow na start
+        Max1329::set_dpio_setup_register(1, &mut ecp5, 0x03); // Ustawienie wewnetrznych pullopow i wlaczenie wszystkich tranzystorow na start
         
         // if device0.init(&mut ecp5){
         //     telemetry0::spawn().unwrap();
@@ -328,6 +384,7 @@ mod app {
         (ecp5).lock(|ecp5| {
             match settings.device0_settings() {
                 Some(dev_settings) => {(device0, silpa_detector, back_plane).lock(|device0, silpa_detector, back_plane| (
+                    device0.settings_update(ecp5, dev_settings),
                     if device0.settings.dacs_value[0] != dev_settings.dacs_value[0] {
                         log::info!("Zmiana wartosci Threshold CH1: {}", dev_settings.dacs_value[0]);
                         device0.calculate_dac_value(silpa_detector.channel_1_slope, silpa_detector.channel_1_intercept, dev_settings.dacs_value[0], 1, ecp5)
@@ -357,7 +414,6 @@ mod app {
                         log::info!("Zmiana wartosci THYST CH2: {}", dev_settings.channels_thyst[1]);
                         hardware::lm75a::set_thyst(&mut back_plane.i2c, hardware::lm75a::I2C_ADDR[1], dev_settings.channels_thyst[1])
                     },
-                    device0.settings_update(ecp5, dev_settings),
                     
                 ))},
                 None => {((), (), (), (), (), (), ())},

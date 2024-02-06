@@ -54,7 +54,7 @@ impl TelemetryBuffer{
     }
 
     pub fn set_ch2_temperature(&mut self, temp : f32){
-        self.telemetry.channel_temperature[2] = temp;
+        self.telemetry.channel_temperature[1] = temp;
     }
 }
 
@@ -77,8 +77,8 @@ impl Default for Settings{
             adc_lt_threshold: 0x000,
             dacs_enable     : [false, false],
             channels_locked : [false, false],
-            channels_thyst  : [25.0, 25.0], // Temperatura powrotu do normalnej pracy
-            channels_tos    : [35.0, 35.0], // Temperatura odlaczenia kanalu z powodu przegrzania  
+            channels_thyst  : [27.0, 27.0], // Temperatura powrotu do normalnej pracy
+            channels_tos    : [30.0, 30.0], // Temperatura odlaczenia kanalu z powodu przegrzania  
             dacs_value      : [0.0, 0.0],
             telemetry_period: 2,
         }
@@ -181,16 +181,16 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                                                       dac::RefConf::Ext1_0,);
         }
 
-        if self.settings.channels_locked != new_settings.channels_locked {
-            let ecp5_inputs : [u8; 2] = [0x00, 0x00];
-            if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL1) == 0{
-                self.activate_channel(ecp5, 1);
-            }
+        // if self.settings.channels_locked != new_settings.channels_locked {
+        //     let ecp5_inputs : [u8; 2] = [0x00, 0x00];
+        //     if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL1) == 0{
+        //         self.activate_channel(ecp5, 1);
+        //     }
 
-            if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL2) == 0{
-                self.activate_channel(ecp5, 2);
-            }         
-        }
+        //     if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL2) == 0{
+        //         self.activate_channel(ecp5, 2);
+        //     }         
+        // }
 
         self.settings = new_settings;
     }
@@ -199,24 +199,27 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 
         // Odczyt ADC1
         // log::info!("Wewnatrz telemetry() ADC1");
-        Max1329::set_adc_setup_register(1, ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
             // log::info!("W8 for ADC1 in Telemetry");
         }
         
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
+        log::info!("Wartosc DACA: {}", Max1329::read_daca_value(1, ecp5));
         log::info!("Wartosc z ADC1: {}", adc_val.0);
+        log::info!("Moc wejsciowa na CH1: {}", vrms_to_dbm_converter((adc_val.0 as f32) * 2.5 / 4095.0 /1.5));
         self.telemetry.set_ch1_output_power_field(adc_val);
 
-        Max1329::set_adc_setup_register(1, ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
             // log::info!("W8 for ADC2 in Telemetry");
         } 
 
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        log::info!("Wartosc z ADC1: {}", adc_val.0);
+        log::info!("Wartosc DACB: {}", Max1329::read_dacb_value(1, ecp5));
+        log::info!("Wartosc z ADC2: {}", adc_val.0);
         self.telemetry.set_ch2_output_power_field(adc_val);
-        
+        log::info!("Stan kanalow: {}, {}", self.settings.channels_locked[0], self.settings.channels_locked[1]);
         // log::info!("Wewnatrz telemetry() Koniec");
         (self.telemetry.finalize(),
          self.settings.telemetry_period)
@@ -344,16 +347,18 @@ impl SiLPA<SilpaDefault>
     }
 
     pub fn calculate_dac_value(&mut self, slope : f32, intercept : f32, ptreshold : f32, channel : u8, ecp5: &mut ECP5){
-        let vin_detector = slope * (f32::sqrt(0.05 /f32::log10(ptreshold/10.0)) - intercept);
-        let bit_value : u16 = (vin_detector * 4095.0/ 2.5 - 26.0) as u16;  // 26 dB pochodzi z dzielnika 1k i 50 Ohm 
+        let vin_detector = slope * (f32::sqrt(0.05 /f32::log10((ptreshold - 26.0)/10.0)) - intercept);
+        let bit_value : u16 = (vin_detector * 4095.0/ 2.5) as u16;  // 26 dB pochodzi z dzielnika 1k i 50 Ohm 
 
         match channel{
             1 => {
-                Max1329::set_daca_value(self.slot, ecp5, bit_value);
+                Max1329::set_daca_value(1, ecp5, 0b0000_0010_1000_0011);
+                // Max1329::set_daca_value(1, ecp5, bit_value);
                 self.settings.dacs_value[0] = ptreshold;
             },
             2 => {
-                Max1329::set_dacb_value(self.slot, ecp5, bit_value);
+                // Max1329::set_dacb_value(1, ecp5, bit_value); // Zamienic na self.slot
+                Max1329::set_dacb_value(1, ecp5, 0b0000_0010_1000_0011);
                 self.settings.dacs_value[1] = ptreshold;
             },
             _ => log::info!("Incorrect channel nubmer"),  
