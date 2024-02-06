@@ -171,20 +171,44 @@ where
             log::info!("Channel_1_intercept : {}", channel_1_intercept);
             log::info!("Channel_1_intercept : {}", channel_1_intercept.to_bits());
 
-            channel_2_slope = 0.0;
-            // ( 
-            //                     ((received_coefficients[8] as u32) << 24) |
-            //                     ((received_coefficients[9] as u32) << 16) |
-            //                     ((received_coefficients[10] as u32) << 8) |
-            //                     ((received_coefficients[11] as u32) << 0)
-            //                 ) as f32;
-            channel_2_intercept = 0.0;
-            // ( 
-            //                     ((received_coefficients[12] as u32) << 24) |
-            //                     ((received_coefficients[13] as u32) << 16) |
-            //                     ((received_coefficients[14] as u32) << 8) |
-            //                     ((received_coefficients[15] as u32) << 0)
-            //                 ) as f32;     
+            // channel_2_slope = 0.0;
+            // // ( 
+            // //                     ((received_coefficients[8] as u32) << 24) |
+            // //                     ((received_coefficients[9] as u32) << 16) |
+            // //                     ((received_coefficients[10] as u32) << 8) |
+            // //                     ((received_coefficients[11] as u32) << 0)
+            // //                 ) as f32;
+            // channel_2_intercept = 0.0;
+            // // ( 
+            // //                     ((received_coefficients[12] as u32) << 24) |
+            // //                     ((received_coefficients[13] as u32) << 16) |
+            // //                     ((received_coefficients[14] as u32) << 8) |
+            // //                     ((received_coefficients[15] as u32) << 0)
+            // //                 ) as f32;     
+        }
+        Err(e) => {
+            panic!("I2C Error receiving coefficients")
+        }
+    }
+    received_coefficients = [0; 8];  
+    match i2c.write_read(I2C_ADDR, &[EEPROM_CHANNEL_2_COEFFICIENTS], &mut received_coefficients){
+        Ok(()) => {
+            let var  = ((received_coefficients[0] as u32) << 24) |
+                            ((received_coefficients[1] as u32) << 16) |
+                            ((received_coefficients[2] as u32) << 8) |
+                            ((received_coefficients[3] as u32) << 0);
+            channel_2_slope = f32::from_bits(var);
+            log::info!("Channel_2_slope : {}", channel_2_slope);
+            log::info!("Channel_2_slope : {}", channel_2_slope.to_bits());
+
+            let var  = ((received_coefficients[4] as u32) << 24) |
+                            ((received_coefficients[5] as u32) << 16) |
+                            ((received_coefficients[6] as u32) << 8) |
+                            ((received_coefficients[7] as u32) << 0);
+            channel_2_intercept = f32::from_bits(var);
+            log::info!("Channel_2_intercept : {}", channel_2_intercept);
+            log::info!("Channel_2_intercept : {}", channel_2_intercept.to_bits());
+
         }
         Err(e) => {
             panic!("I2C Error receiving coefficients")
