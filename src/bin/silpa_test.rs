@@ -112,55 +112,19 @@ mod app {
 
 
         
-        let mut i2c = stm_sys_board.therm_i2c;
+        let i2c = stm_sys_board.therm_i2c;
         let mut i2c_bp = stm_sys_board.cpcis_i2c;
         let device0 = Device0Type::new(5);
         let mut servmod = stm_sys_board.servmod;
         let mut array : [u8; 2] = [0x00, 0x00];
 
-        
-
-        /*
-            STM SYS BOARD - I2C temps sensors, EEPROM
-        */
-
-        log::info!("TEST 1: STM_SYS_Board I2C - temp sensors & eeprom");
-        match hardware::lm75a::read_temp(&mut i2c, 0b1001_000){ // Addr 0x48
-            Ok(temp) => log::info!("Temp 1: {}", temp),
-            Err(_e) => panic!("I2C 1st LM75 on Sys_Board error!"),
-        };
-        match hardware::lm75a::read_temp(&mut i2c, 0b1001_001){ // Addr 0x49
-            Ok(temp) => log::info!("Temp 2: {}", temp),
-            Err(_e) => panic!("I2C 2nd LM75 on Sys_Board error!"),
-        };
-        hardware::eeprom::test_eeprom(&mut i2c, 0b1010_000).unwrap();
-
-        log::info!("TEST SILPA SLOT 5: eeprom");
         servmod.4.set_low().unwrap();
 
-        // match hardware::lm75a::read_temp(&mut i2c_bp, 0b1001_000){
-        //     Ok(temp) => log::info!("Temp 1: {}", temp),
-        //     Err(_e) => panic!("I2C 1st LM75 on Sipla error!"),
-        // };
-        // match hardware::lm75a::read_temp(&mut i2c_bp, 0b1001_001){
-        //     Ok(temp) => log::info!("Temp 2: {}", temp),
-        //     Err(_e) => panic!("I2C 2n d LM75 on Sipla error!"),
-        // };
         hardware::eeprom::test_eeprom(&mut i2c_bp, 0b1010_000).unwrap();
 
-        // let mut detector_coefficients : [f32; 4] = [0.0; 4];
-        // log::info!("Poczatek testu EEPROM");
-        // log::info!("-------------------------");
-        let mut detector_coefficients : [f32; 4] = [1.2, 2.25, 1.31, 0.25];
-        // log::info!("Wpisywane wartości do eepromu:");
-        // log::info!("ch1_slope: {}", detector_coefficients[0].to_bits());
-        // log::info!("ch1_intercept: {}", detector_coefficients[1].to_bits());
-        // log::info!("ch2_slope: {}", detector_coefficients[2].to_bits());
-        // log::info!("ch2_intercept: {}", detector_coefficients[3].to_bits());
-        // (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(&mut i2c_bp);
+
+        let mut detector_coefficients : [f32; 4] = [34.0, -34.71, 34.0, -34.71];
         hardware::eeprom::test_example_coefficients(&mut i2c_bp, 0b1010_000, &mut detector_coefficients);
-        // log::info!("-------------------------");
-        // log::info!("Koniec testu EEPROM");
         let mut silpa_detector = hardware::eeprom::SiLPADetector::new(detector_coefficients[0],
                                                                                 detector_coefficients[1], 
                                                                                 detector_coefficients[2], 
@@ -171,19 +135,15 @@ mod app {
         
         let mut back_plane = BackPlaneI2C{i2c: i2c_bp, servmod};
 
-        log::info!("Ustawienie TOS w CH1: {}", 31.5);
-        hardware::lm75a::set_tos(&mut back_plane.i2c, 0b1001_000, 31.0);
-        hardware::lm75a::set_thyst(&mut back_plane.i2c, 0b1001_000, 31.0);
+        log::info!("Ustawienie TOS w CH1: {}", device0.settings.channels_tos[0]);
+        hardware::lm75a::set_tos(&mut back_plane.i2c, 0b1001_000, device0.settings.channels_tos[0]);
+        hardware::lm75a::set_thyst(&mut back_plane.i2c, 0b1001_000, device0.settings.channels_thyst[0]);
         let tos = hardware::lm75a::read_tos(&mut back_plane.i2c, 0b1001_000);
-        log::info!("Ustawiona wartość TOS : {}", tos);
+        log::info!("Ustawiona wartość TOSw CH1 : {}", tos);
 
         silpa_detector.set_coefficients(device0.slot, &mut back_plane.i2c, &mut back_plane.servmod); // Po tej funkcji servmod jest w stanie high
 
         
-        log::info!("Ustawienie TOS w CH1: {}", 30.0);
-        hardware::lm75a::set_tos(&mut back_plane.i2c, 0b1001_000, 30.0);
-        let tos = hardware::lm75a::read_tos(&mut back_plane.i2c, 0b1001_000);
-        log::info!("Ustawiona wartość TOS : {}", tos);
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
             400000000,
         ));

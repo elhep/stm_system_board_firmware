@@ -77,8 +77,8 @@ impl Default for Settings{
             adc_lt_threshold: 0x000,
             dacs_enable     : [false, false],
             channels_locked : [false, false],
-            channels_thyst  : [27.0, 27.0], // Temperatura powrotu do normalnej pracy
-            channels_tos    : [30.0, 30.0], // Temperatura odlaczenia kanalu z powodu przegrzania  
+            channels_thyst  : [31.0, 31.0], // Temperatura powrotu do normalnej pracy
+            channels_tos    : [35.0, 35.0], // Temperatura odlaczenia kanalu z powodu przegrzania  
             dacs_value      : [0.0, 0.0],
             telemetry_period: 2,
         }

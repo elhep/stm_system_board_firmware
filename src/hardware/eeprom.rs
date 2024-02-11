@@ -169,22 +169,7 @@ where
             log::info!("Data po odczycie: {:#010b} {:#010b} {:#010b} {:#010b}", received_coefficients[4], received_coefficients[5], 
             received_coefficients[6], received_coefficients[7]);
             log::info!("Channel_1_intercept : {}", channel_1_intercept);
-            log::info!("Channel_1_intercept : {}", channel_1_intercept.to_bits());
-
-            // channel_2_slope = 0.0;
-            // // ( 
-            // //                     ((received_coefficients[8] as u32) << 24) |
-            // //                     ((received_coefficients[9] as u32) << 16) |
-            // //                     ((received_coefficients[10] as u32) << 8) |
-            // //                     ((received_coefficients[11] as u32) << 0)
-            // //                 ) as f32;
-            // channel_2_intercept = 0.0;
-            // // ( 
-            // //                     ((received_coefficients[12] as u32) << 24) |
-            // //                     ((received_coefficients[13] as u32) << 16) |
-            // //                     ((received_coefficients[14] as u32) << 8) |
-            // //                     ((received_coefficients[15] as u32) << 0)
-            // //                 ) as f32;     
+            log::info!("Channel_1_intercept : {}", channel_1_intercept.to_bits()); 
         }
         Err(e) => {
             panic!("I2C Error receiving coefficients")

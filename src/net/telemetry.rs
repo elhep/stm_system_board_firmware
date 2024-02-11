@@ -123,7 +123,6 @@ pub fn get_tlm_topic(
     // they are defined too long, this will panic and the device will fail to boot.
     let mut full_topic: String<128> = String::new();
     write!(&mut full_topic, "{}/{}", topic, device).unwrap();
-    log::info!("{}", full_topic);
 
     full_topic
 }
