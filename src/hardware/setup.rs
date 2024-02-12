@@ -16,6 +16,7 @@ use smoltcp_nal::smoltcp;
 use embedded_hal::digital::v2::{OutputPin, InputPin};
 use crate::hardware::DeviceIO;
 use crate::hardware::ecp5::ECP5;
+use crate::hardware::bus_manager::BusProxy;
 
 use super::{
     design_parameters, eeprom,
@@ -108,11 +109,9 @@ pub struct BoardDevices {
     pub systick: Systick,
     pub net: NetworkDevices,
     //pub devicesio: DeviceIO,
-    pub ecp5: ECP5,
     pub mon_bus: MonBus,
     pub therm_i2c: hal::i2c::I2c<hal::stm32::I2C1>,
-    pub cpcis_i2c: hal::i2c::I2c<hal::stm32::I2C4>,
-    pub servmod: ServMod,
+    pub slots_bus: SlotsBus,
 }
 
 pub struct MonBus {
@@ -123,6 +122,15 @@ pub struct MonBus {
     p_ios: MonBusTypes::P_IOs,
     f_ios: MonBusTypes::F_IOs,
 }
+
+pub struct SlotsBus {
+    pub ecp5: ECP5,
+    pub cpcis_i2c: CpcisI2C,
+    pub servmod: ServMod,
+}
+
+pub type CpcisI2C = hal::i2c::I2c<hal::stm32::I2C4>;
+pub type BusReference = BusProxy<'static, SlotsBus>;
 
 
 #[link_section = ".sram3.eth"]
@@ -661,16 +669,16 @@ pub fn setup(
 //    fp_led_2.set_low().unwrap();
 //    fp_led_3.set_low().unwrap();
 
+    let slots_bus = SlotsBus {ecp5, cpcis_i2c, servmod};
+
 
     let stm_sys_board = BoardDevices {
         systick,
         net: network_devices,
        // devicesio,
-        ecp5,
         mon_bus,
         therm_i2c,
-        cpcis_i2c,
-        servmod,
+        slots_bus,
     };
 
     // info!("Version {} {}", build_info::PKG_VERSION, build_info::GIT_VERSION.unwrap());

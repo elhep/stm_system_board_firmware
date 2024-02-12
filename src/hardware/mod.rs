@@ -12,6 +12,7 @@ pub mod design_parameters;
 pub mod setup;
 pub mod ecp5;
 pub mod lm75a;
+pub mod bus_manager;
 
 pub mod eeprom;
 pub type InputFloating = hal::gpio::Input<hal::gpio::Floating>;
