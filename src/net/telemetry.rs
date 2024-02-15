@@ -5,7 +5,6 @@ use serde::Serialize;
 use super::NetworkReference;
 use crate::hardware::SystemTimer;
 use minimq::embedded_nal::IpAddr;
-use minimq::Error;
 use core::fmt::Write;
 
 /// The telemetry client for reporting telemetry data over MQTT.
@@ -43,23 +42,6 @@ impl TelemetryClient {
         Self {
             mqtt,
             telemetry_topic,
-        }
-    }
-
-    pub fn publish_message(&mut self, topic: &str, message: &str) -> Result<(),()> {
-        if !self.mqtt.client.is_connected() {
-            return Err(());
-        }
-
-        match self.mqtt.client.publish(
-            topic,
-            message.as_bytes(),
-            QoS::AtMostOnce,
-            Retain::NotRetained,
-            &[],
-        ) {
-            Err(_) => Err(()),
-            Ok(_) => Ok(()),
         }
     }
 
