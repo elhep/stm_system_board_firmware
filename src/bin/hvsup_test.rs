@@ -86,7 +86,7 @@ mod app {
             env!("CARGO_BIN_NAME"),
             stm_sys_board.net.mac_address,
             option_env!("BROKER")
-                .unwrap_or("192.168.122.72")
+                .unwrap_or("192.168.100.168")
                 .parse()
                 .unwrap(),
             Settings::default(),
@@ -99,6 +99,9 @@ mod app {
 
         let mut device0 = Device0Type::new(5, bus_manager.acquire_bus());
         device0.init();
+        // if (device0.need_poll()) {
+        //     poll0::spawn().unwrap();
+        // }
 
         let shared = Shared {
             network,
@@ -130,6 +133,7 @@ mod app {
                 NetworkState::Updated => {}
                 NetworkState::NoChange => cortex_m::asm::wfi(),
             }
+            log::info!("Idle");
             // let mut array = [0, 0];
             // c.shared.ecp5.lock(|ecp| ecp.read_inputs(1, &mut array));
             // log::info!("INPUTS: {} {}", array[0], array[1]);
@@ -158,14 +162,16 @@ mod app {
         let (telemetry, telemetry_period) = c.shared.device0.lock(|device| (device.telemetry()));
 
         c.shared.network.lock(|net| net.telemetry.publish(DEVICE0_TELEMETRY_PREFIX, &telemetry));
-        // log::info!("TELEMETRY");
+        log::info!("TELEMETRY");
         telemetry0::Monotonic::spawn_after((telemetry_period as u64).millis())
             .unwrap();
     }
 
     #[task(priority = 1, shared=[network, device0])]
-    fn mqtt_discovery0(mut c: mqtt_discovery0::Context) {
-       
+    fn poll0(mut c: poll0::Context) {
+        let delay = c.shared.device0.lock(|dev| dev.poll());
+        // poll0::Monotonic::spawn_after((delay as u64).millis())
+        //     .unwrap();
     }
 
 
@@ -184,9 +190,9 @@ mod app {
     fn device0interrupt(mut c: device0interrupt::Context) {
         log::info!(":::::::::::::::::::::::::::INTERRUPT:::::::::::::::::::::::::::::::");
         c.shared.exti.lock(|ex| {
-            if ex.is_pending(Event::GPIO3){
+            if ex.is_pending(Event::GPIO3) {
                 c.local.exti_pin0.clear_interrupt_pending_bit();
-                //device0_check_interrupt::spawn().unwrap();
+                device0_check_interrupt::spawn().unwrap();
             }
         })
     }

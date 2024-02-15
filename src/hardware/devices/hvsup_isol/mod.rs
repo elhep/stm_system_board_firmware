@@ -82,6 +82,7 @@ pub struct HvSupIsol {
     a_variant: OutputVariant,
     b_variant: OutputVariant,
 }
+
 impl HvSupIsol {
     pub fn new(slot_number: u8, bus: BusReference, a_variant: OutputVariant, b_variant: OutputVariant) -> Self {
         Self {
@@ -212,5 +213,13 @@ impl Devices<Settings, Telemetry> for HvSupIsol {
                 self.board_controller.switch_hv_enable(state, &mut bus.ecp5);
             }
         });
+    }
+
+    fn poll(&mut self) -> u16 {
+        100
+    }
+
+    fn need_poll(&mut self) -> bool {
+        true
     }
 }

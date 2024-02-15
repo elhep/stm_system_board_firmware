@@ -56,7 +56,7 @@ impl BoardController {
     pub fn enable_interrupt(&mut self, io_pin: IoPin, ecp5: &mut ECP5) {
         self.interrupts_mask |= io_pin.mask();
 
-        ecp5.write_interrupts_mask(self.slot, &[self.interrupts_mask]);
+        ecp5.write_interrupts_mask(self.slot, &[0, self.interrupts_mask]);
     }
 
     pub fn read_device_name(&self, cpcis_i2c: &mut CpcisI2C, servmod: &mut ServMod) -> [u8; 10] {
@@ -91,7 +91,7 @@ impl BoardController {
     pub fn read_io(&self, pin: IoPin, ecp5: &mut ECP5) -> bool {
         let mut data = [0u8; 2];
         ecp5.read_inputs(self.slot, &mut data);
-        (data[0] & pin.mask()) > 0
+        (data[1] & pin.mask()) > 0
     }
 
     fn switch_servmod(&self, on: bool, servmod: &mut ServMod) {

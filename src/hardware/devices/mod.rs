@@ -20,6 +20,8 @@ where
     fn settings_update(&mut self, new_settings: T) -> ();
     fn telemetry(&mut self) -> (U, u16);
     fn check_interrupt(&mut self) -> ();
+    fn poll(&mut self) -> u16;
+    fn need_poll(&mut self) -> bool;
 }
 
 pub trait Variants
@@ -41,4 +43,6 @@ impl Devices<bool, bool> for EmptySlot{
     }
     fn telemetry(&mut self) -> (bool, u16) {(false,0)}
     fn check_interrupt(&mut self) -> () {}
+    fn poll(&mut self) -> u16 {0}
+    fn need_poll(&mut self) -> bool {false}
 }
