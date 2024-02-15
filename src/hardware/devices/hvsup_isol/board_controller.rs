@@ -25,6 +25,9 @@ impl BoardController {
     const EEPROM_ADDRESS: u8 = 0x50;
     const THERM_ADDRESS: u8 = 0x48;
 
+    const HV_EN_MASK: u8 = 0b0010_0000;
+    const PSU_EN_MASK: u8 = 0b0001_0000;
+
     pub fn new(slot: u8) -> BoardController {
         BoardController {
             slot,
@@ -33,22 +36,28 @@ impl BoardController {
         }
     }
 
+    pub fn init(&self, ecp5: &mut ECP5) {
+        let data = BoardController::HV_EN_MASK | BoardController::PSU_EN_MASK;
+        ecp5.write_oe(self.slot, &[0, data]);
+        let mut data = [0xffu8; 2];
+        ecp5.write_clear_interrupts(self.slot, &mut data);
+    }
+
     pub fn switch_psu_enable(&mut self, state: bool, ecp5: &mut ECP5) {
-        const PSU_EN_MASK: u8 = 0b0001_0000;
         if state {
-            self.outputs[1] |= PSU_EN_MASK;
+            self.outputs[1] |= BoardController::PSU_EN_MASK;
         } else {
-            self.outputs[1] &= !PSU_EN_MASK;
+            self.outputs[1] &= !BoardController::PSU_EN_MASK;
         }
         ecp5.write_outputs(self.slot, &self.outputs);
     }
 
     pub fn switch_hv_enable(&mut self, state: bool, ecp5: &mut ECP5) {
-        const HV_EN_MASK: u8 = 0b0010_0000;
+        log::info!("Switching HV_EN to: {}",  state);
         if state {
-            self.outputs[1] |= HV_EN_MASK;
+            self.outputs[1] |= BoardController::HV_EN_MASK;
         } else {
-            self.outputs[1] &= !HV_EN_MASK;
+            self.outputs[1] &= !BoardController::HV_EN_MASK;
         }
         ecp5.write_outputs(self.slot, &self.outputs);
     }
@@ -91,6 +100,7 @@ impl BoardController {
     pub fn read_io(&self, pin: IoPin, ecp5: &mut ECP5) -> bool {
         let mut data = [0u8; 2];
         ecp5.read_inputs(self.slot, &mut data);
+        log::info!("IO PINS 1: {}; 2: {}", data[0], data[1]);
         (data[1] & pin.mask()) > 0
     }
 

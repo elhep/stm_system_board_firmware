@@ -133,7 +133,6 @@ mod app {
                 NetworkState::Updated => {}
                 NetworkState::NoChange => cortex_m::asm::wfi(),
             }
-            log::info!("Idle");
             // let mut array = [0, 0];
             // c.shared.ecp5.lock(|ecp| ecp.read_inputs(1, &mut array));
             // log::info!("INPUTS: {} {}", array[0], array[1]);
@@ -162,7 +161,6 @@ mod app {
         let (telemetry, telemetry_period) = c.shared.device0.lock(|device| (device.telemetry()));
 
         c.shared.network.lock(|net| net.telemetry.publish(DEVICE0_TELEMETRY_PREFIX, &telemetry));
-        log::info!("TELEMETRY");
         telemetry0::Monotonic::spawn_after((telemetry_period as u64).millis())
             .unwrap();
     }
