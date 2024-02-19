@@ -209,8 +209,8 @@ mod app {
                           max1329::dac::OpAmp::Disable,
                           max1329::dac::RefConf::Int2_5);
 
-            Max1329::set_daca_value(1, ecp, 0b0000_0001_0100_1010); // 0.2 V na wyjsciu DAC, -2 dBm na wejsciu detektora,
-            Max1329::set_dacb_value(1, ecp, 0b0000_1000_0000_0000);
+            Max1329::set_daca_value(1, ecp, 0b0000_1000_1111_0101); // 1.4 V na wyjsciu DAC, -2 dBm na wejsciu detektora,
+            Max1329::set_dacb_value(1, ecp, 0b0000_0110_0000_0000);
             log::info!("Ustawiono wartosc DAC");
 
         }
@@ -219,13 +219,42 @@ mod app {
         // Warosc u16 = 0b0000_0000_1000_0011
 
         let x = Max1329::read_daca_value(1, & mut ecp5);
-        log::info!("Wartosc daca: {}", x);
+        log::info!("Wartosc daca przed test dac: {}", x);
 
         // #[cfg(feature = "ext_ref_burned")]
         test_dac(&mut ecp5);
 
         let x = Max1329::read_daca_value(1, & mut ecp5);
-        log::info!("Wartosc daca: {}", x);
+        log::info!("Wartosc daca po test dac: {}", x);
+
+
+        ecp5.read_oe(1, &mut array);
+        log::info!("Odczyt OE: {} {}", array[1], array[0]);
+
+        let mut outputs_value : [u8; 2] = [0, 128];
+        let mut outputs_enable : [u8; 2] = [0, 192];
+
+        ecp5.write_oe(1, &mut outputs_enable);
+        ecp5.write_outputs(1, &mut outputs_value);
+
+
+        // Piny, bity do write_output, read_output
+        //  4 - input, przerwanie z kanalu pierwszego
+        //  5 - input, przerwanie z kanalu drugiego
+        //  6 - output, resetowanie kanalu pierwszego
+        //  7 - output, resetowanie kanalu pierwszego
+
+
+        outputs_value = [0, 0];
+        ecp5.write_outputs(1, &mut outputs_value);
+
+        ecp5.read_interrupts_mask(1, &mut array);
+        log::info!("Odczyt interrupt mask: {} {}", array[1], array[0]);
+
+        // let mut interrupt_mask : [u8; 2] = [48, 0];
+        // ecp5.write_interrupts_mask(1, &mut interrupt_mask);
+
+
 
         //    -------------------------:::::::  ADC TESTS  :::::::-------------------------
 
@@ -242,19 +271,6 @@ mod app {
         }
         let x = Max1329::read_adc_data_register(1, &mut ecp5);
         log::info!("ADC value for AIN1_GND {}", x.0);  
-
-        // Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-        // Max1329::set_adc_setup_direct(1, &mut ecp5, max1329::adc::Mux::DVdd4_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-
-
-        // while (Max1329::read_status_register(1, &mut ecp5) | (1 << 20)) == 0 {
-        //     log::info!("W8 for ADC");
-        // }
-
-        // let x = Max1329::read_adc_data_register(1, &mut ecp5);
-        // log::info!("ADC value for DVDD {}", x.0);    // Dvdd / 4 (3.3 V / 4 = 0.825 V)
-
-
 
         // -----------------------------------------------------------------------   
         // log::info!("Test ADC ma AVDD");
@@ -467,4 +483,3 @@ mod app {
 
 
 }
-

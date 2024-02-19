@@ -220,8 +220,6 @@ where
     let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
         400000000,
     ));
-    log::info!("f32 : ch1_slope : {}", data[0]);
-    log::info!("f32 bits : ch1_slope : {}", data[0].to_bits());
     for i in 0..7{
         if i < 4 {
             array_1st_page[i + 1] = (ch1_slope_u32 >>  (24 - 8*i)) as u8;
@@ -239,14 +237,14 @@ where
     // Wpisanie do pamieci testowych współczynników
     let _ = i2c.write(address, &array_1st_page);
     delay.delay_ms(100 as u32);
-    // let _ = i2c.write(address, &array_2nd_page);
-    // delay.delay_ms(100 as u32);
+    let _ = i2c.write(address, &array_2nd_page);
+    delay.delay_ms(100 as u32);
     // Odczytanie przykładowych współczynników
     let mut detector_coefficients : [f32; 4] = [0.0; 4];
 
         (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(i2c);
 
-        log::info!("Przykładowe wartości parametrów do testów: {} {} {} {}",    data[0].to_bits() as u32, data[1].to_bits() as u32, data[2].to_bits() as u32, data[3].to_bits() as u32);
+        // log::info!("Przykładowe wartości parametrów do testów: {} {} {} {}",    data[0].to_bits() as u32, data[1].to_bits() as u32, data[2].to_bits() as u32, data[3].to_bits() as u32);
         log::info!("Odczytane wartości z eepromu:              {} {} {} {}",    detector_coefficients[0].to_bits() as u32, detector_coefficients[1].to_bits() as u32, 
                                                                                 detector_coefficients[2].to_bits() as u32, detector_coefficients[3].to_bits() as u32);
 
