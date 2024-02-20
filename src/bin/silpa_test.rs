@@ -40,7 +40,6 @@ use stm_sys_board::net::settings::{Settings, Device0Type,
                                                DEVICE0_TELEMETRY_PREFIX,};
 use embedded_hal::blocking::delay::DelayMs;
 
-use hardware::lm75a::LM75_TEMPERATURE;
 
 
 //struct SysBoardTelemetry {
@@ -210,7 +209,7 @@ mod app {
                           max1329::dac::RefConf::Int2_5);
 
             Max1329::set_daca_value(1, ecp, 0b0000_1000_1111_0101); // 1.4 V na wyjsciu DAC, -2 dBm na wejsciu detektora,
-            Max1329::set_dacb_value(1, ecp, 0b0000_0110_0000_0000);
+            Max1329::set_dacb_value(1, ecp, 0b0000_0010_1111_0101);
             log::info!("Ustawiono wartosc DAC");
 
         }
@@ -225,7 +224,7 @@ mod app {
         test_dac(&mut ecp5);
 
         let x = Max1329::read_daca_value(1, & mut ecp5);
-        log::info!("Wartosc daca po test dac: {}", x);
+        log::info! ("Wartosc daca po test dac: {}", x);
 
 
         ecp5.read_oe(1, &mut array);
@@ -235,8 +234,10 @@ mod app {
         let mut outputs_enable : [u8; 2] = [0, 192];
 
         ecp5.write_oe(1, &mut outputs_enable);
-        ecp5.write_outputs(1, &mut outputs_value);
+        ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]);
 
+
+        ecp5.write_outputs(1, &mut outputs_value);
 
         // Piny, bity do write_output, read_output
         //  4 - input, przerwanie z kanalu pierwszego
@@ -250,9 +251,8 @@ mod app {
 
         ecp5.read_interrupts_mask(1, &mut array);
         log::info!("Odczyt interrupt mask: {} {}", array[1], array[0]);
-
-        // let mut interrupt_mask : [u8; 2] = [48, 0];
-        // ecp5.write_interrupts_mask(1, &mut interrupt_mask);
+        let mut interrupt_mask : [u8; 2] = [0, 0b0011_0000]; // (4) - CH1 locked, (5) - CH2 locked
+        ecp5.write_interrupts_mask(1, &mut interrupt_mask);
 
 
 
@@ -401,13 +401,13 @@ mod app {
     fn telemetry0(mut c: telemetry0::Context) {
         log::info!("----------- Telemetry --------------");
 
-        let (temperature_ch1, temperature_ch2) = c.shared.back_plane.lock(|back_plane| c.shared.device0.lock(|device| (
-            (device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 1),
-            device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 2))
-        )));
+        // let (temperature_ch1, temperature_ch2) = c.shared.back_plane.lock(|back_plane| c.shared.device0.lock(|device| (
+        //     (device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 1),
+        //     device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 2))
+        // )));
 
-        log::info!("Temp CH1 : {}", temperature_ch1);
-        log::info!("Temp CH2 : {}", temperature_ch2);
+        // log::info!("Temp CH1 : {}", temperature_ch1);
+        // log::info!("Temp CH2 : {}", temperature_ch2);
 
         let (telemetry, telemetry_period) = c.shared.ecp5.lock(|ecp5| c.shared.device0.lock(|device| 
             (
@@ -438,17 +438,18 @@ mod app {
         } = c.shared;
 
         
-        (back_plane, ecp5, device0).lock(|back_plane, ecp5, device|
+        (back_plane, ecp5, device0).lock(|_back_plane, ecp5, device|
             (
-                if device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 1) > LM75_TEMPERATURE::TRESHOLD_CH1 {
-                    device.settings.channels_locked[0] = true;
-                    log::info!("Przekroczenie temperatury CH1");
-                },
+                ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]),
+                // if device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 1) > device.settings.channels_tos[0] {
+                //     device.settings.channels_locked[0] = true;
+                //     log::info!("Przekroczenie temperatury CH1");
+                // },
 
-                if device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 2) > LM75_TEMPERATURE::TRESHOLD_CH2 {
-                    device.settings.channels_locked[1] = true;
-                    log::info!("Przekroczenie temperatury CH2");
-                },
+                // if device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 2) > device.settings.channels_tos[1] {
+                //     device.settings.channels_locked[1] = true;
+                //     log::info!("Przekroczenie temperatury CH2");
+                // },
 
                 device.check_interrupt(ecp5)
             )
@@ -459,10 +460,10 @@ mod app {
         // (device0, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
     }
 
-    #[task(binds = EXTI15_10, priority = 4, local = [exti_pin0], shared = [exti])]
+    #[task(binds = EXTI3, priority = 4, local = [exti_pin0], shared = [exti])]
     fn device0interrupt(mut c: device0interrupt::Context) {
         c.shared.exti.lock(|ex| {
-            if ex.is_pending(Event::GPIO13){
+            if ex.is_pending(Event::GPIO3){
                 c.local.exti_pin0.clear_interrupt_pending_bit();
                 device0_check_interrupt::spawn().unwrap();
             }

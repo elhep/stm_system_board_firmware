@@ -181,16 +181,24 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                                                       dac::RefConf::Ext1_0,);
         }
 
-        // if self.settings.channels_locked != new_settings.channels_locked {
-        //     let ecp5_inputs : [u8; 2] = [0x00, 0x00];
-        //     if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL1) == 0{
-        //         self.activate_channel(ecp5, 1);
-        //     }
+        if self.settings.channels_locked != new_settings.channels_locked {
+            let ecp5_inputs : [u8; 2] = [0x00, 0x00];
 
-        //     if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL2) == 0{
-        //         self.activate_channel(ecp5, 2);
-        //     }         
-        // }
+            if self.settings.channels_locked[0] != new_settings.channels_locked[0] {
+                log::info!("Odblokowywanie CH1");
+            }
+
+            if self.settings.channels_locked[1] != new_settings.channels_locked[1] {
+                log::info!("Odblokowywanie CH2");
+            }
+            // if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL1) == 0{
+            //     self.activate_channel(ecp5, 1);
+            // }
+
+            // if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL2) == 0{
+            //     self.activate_channel(ecp5, 2);
+            // }         
+        }
 
         self.settings = new_settings;
     }
@@ -203,15 +211,15 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         }
         
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        log::info!("Wartosc z ADC1: {}", adc_val.0);
-        log::info!("Moc wejsciowa na CH1: {}", vrms_to_dbm_converter((adc_val.0 as f32) * 2.5 / 4095.0 /1.5));
+        // log::info!("Wartosc z ADC1: {}", adc_val.0);
+        // log::info!("Moc wejsciowa na CH1: {}", vrms_to_dbm_converter((adc_val.0 as f32) * 2.5 / 4095.0 /1.5));
 
         Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::OUTA_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
         }
         
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        log::info!("Wartosc z DAC1: {}", adc_val.0);
+        // log::info!("Wartosc z DAC1: {}", adc_val.0);
 
 
         self.telemetry.set_ch1_output_power_field(adc_val);
@@ -221,15 +229,15 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         } 
 
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        log::info!("Wartosc z ADC2: {}", adc_val.0);
-        log::info!("Moc wejsciowa na CH1: {}", vrms_to_dbm_converter((adc_val.0 as f32) * 2.5 / 4095.0 /1.5));
+        // log::info!("Wartosc z ADC2: {}", adc_val.0);
+        // log::info!("Moc wejsciowa na CH1: {}", vrms_to_dbm_converter((adc_val.0 as f32) * 2.5 / 4095.0 /1.5));
 
         Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::OUTB_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
         }
         
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        log::info!("Wartosc z DAC2: {}", adc_val.0);
+        // log::info!("Wartosc z DAC2: {}", adc_val.0);
 
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
         self.telemetry.set_ch2_output_power_field(adc_val);
@@ -241,7 +249,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 
         // ODczyt inputow z FPGA //
         let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
-        ecp5.read_inputs(self.slot, &mut ecp5_inputs);
+        ecp5.read_inputs(1, &mut ecp5_inputs);
 
         // Opis lini LVDS:
         // - 4 - input, Kanal 1, '1' - input odciety, '0' - sygnal jest wzmacniany
@@ -260,7 +268,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         // Sprawdzic co dany input robi //
         // WYjscia outputow z lm sa zwarte wiec mamy or i to jest sugestia ze temp zostal przekroczona podwojnie
 
-        let status : u32 = Max1329::read_status_register(self.slot, ecp5);
+        let status : u32 = Max1329::read_status_register(1, ecp5);
 
         if (status & max1329::GTA) != 0 {
             self.adc_gt_alarm(ecp5);
@@ -271,7 +279,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         // }
 
         if (status & max1329::ADD) != 0 {
-            self.telemetry.adc = Max1329::read_adc_data_register(self.slot, ecp5);
+            self.telemetry.adc = Max1329::read_adc_data_register(1, ecp5);
         }
     }
 }
