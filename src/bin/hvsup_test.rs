@@ -99,9 +99,6 @@ mod app {
 
         let mut device0 = Device0Type::new(5, bus_manager.acquire_bus());
         device0.init();
-        // if (device0.need_poll()) {
-        //     poll0::spawn().unwrap();
-        // }
 
         let shared = Shared {
             network,
@@ -114,8 +111,9 @@ mod app {
             exti_pin0: exti_pins.0,
         };
 
-        //settings_update::spawn().unwrap();
+        // settings_update::spawn().unwrap();
         telemetry0::spawn().unwrap();
+        poll0::spawn().unwrap();
         ethernet_link::spawn().unwrap();
 
         (shared, local, init::Monotonics(stm_sys_board.systick))
@@ -168,8 +166,10 @@ mod app {
     #[task(priority = 1, shared=[network, device0])]
     fn poll0(mut c: poll0::Context) {
         let delay = c.shared.device0.lock(|dev| dev.poll());
-        // poll0::Monotonic::spawn_after((delay as u64).millis())
-        //     .unwrap();
+        monotonics::now().ticks();
+        if delay != 0 {
+            poll0::Monotonic::spawn_after((delay as u64).millis()).unwrap();
+        }
     }
 
 

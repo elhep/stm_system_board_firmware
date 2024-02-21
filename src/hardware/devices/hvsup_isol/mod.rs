@@ -1,14 +1,16 @@
 use crate::hardware::devices::Devices;
-use crate::hardware::ecp5;
 use crate::hardware::setup::BusReference;
+use crate::hardware::{ecp5, SystemTimer};
 use miniconf::Miniconf;
 use serde::Serialize;
 
 use self::board_controller::{BoardController, IoPin};
 use self::max_controller::{Channel, MaxController};
+use self::timer::Timer;
 
 pub mod board_controller;
 pub mod max_controller;
+pub mod timer;
 
 pub mod hvsupnegneg;
 pub mod hvsupnegpos;
@@ -55,6 +57,7 @@ impl Default for Settings {
 pub struct HvChannelSettings {
     enable: bool,
     u_ctrl: u16,
+    u_step: f32,
     i_ctrl: u16,
 }
 
@@ -63,6 +66,7 @@ impl Default for HvChannelSettings {
         Self {
             enable: false,
             u_ctrl: 0,
+            u_step: 0.0,
             i_ctrl: 0,
         }
     }
@@ -85,7 +89,12 @@ pub struct HvSupIsol {
 }
 
 impl HvSupIsol {
-    pub fn new(slot_number: u8, bus: BusReference, a_variant: OutputVariant, b_variant: OutputVariant) -> Self {
+    pub fn new(
+        slot_number: u8,
+        bus: BusReference,
+        a_variant: OutputVariant,
+        b_variant: OutputVariant,
+    ) -> Self {
         Self {
             settings: Settings::default(),
             bus,
@@ -115,10 +124,6 @@ impl Devices<Settings, Telemetry> for HvSupIsol {
             }
             log::info!("HVSUP correct board name");
 
-            // let mut data = [0xffu8; 2];
-            // bus.ecp5.write_clear_interrupts(1, &mut data);
-            // log::info!("INT state: 1: {}, 2: {}", data[0], data[1]);
-
             self.board_controller.init(&mut bus.ecp5);
             self.board_controller.switch_hv_enable(false, &mut bus.ecp5);
             self.board_controller.switch_psu_enable(true, &mut bus.ecp5);
@@ -132,43 +137,39 @@ impl Devices<Settings, Telemetry> for HvSupIsol {
     }
 
     fn settings_update(&mut self, new_settings: Settings) -> () {
-        let hv_en_changed = self.settings.hv_enable != new_settings.hv_enable;
-        let master_mode_changed = self.settings.master_mode != new_settings.master_mode;
-        self.bus.lock(|bus| {
-            self.board_controller.switch_hv_enable(new_settings.hv_enable, &mut bus.ecp5);
-            // if hv_en_changed || master_mode_changed {
-            //     if new_settings.master_mode {
-            //         self.board_controller
-            //             .switch_hv_enable(new_settings.hv_enable, &mut bus.ecp5);
-            //     } else {
-            //         self.board_controller.switch_hv_enable(
-            //             self.interlock_high && new_settings.hv_enable,
-            //             &mut bus.ecp5,
-            //         );
-            //     }
-            // }
+        let hv_enable = match new_settings.master_mode {
+            true => new_settings.hv_enable,
+            false => self.interlock_high && new_settings.hv_enable,
+        };
 
-            for (i, channel) in [(0, Channel::A), (1, Channel::B)] {
+        self.bus.lock(|bus| {
+            self.board_controller
+                .switch_hv_enable(hv_enable, &mut bus.ecp5);
+
+            for channel in Channel::get_all() {
+                let i = channel as usize;
                 let channel_settings = &self.settings.channels_settings[i];
                 let new_channel_settings = &new_settings.channels_settings[i];
 
-                if channel_settings.enable != new_channel_settings.enable {
-                    self.max_controller.switch_output(
-                        channel,
-                        new_channel_settings.enable,
-                        &mut bus.ecp5,
-                    );
-                }
+                self.max_controller.switch_output(
+                    channel,
+                    new_channel_settings.enable && hv_enable,
+                    &mut bus.ecp5,
+                );
 
-                if channel_settings.u_ctrl != new_channel_settings.u_ctrl {
-                    self.max_controller.set_voltage(
+                let u_changed = channel_settings.u_ctrl != new_channel_settings.u_ctrl
+                    || channel_settings.u_step != new_channel_settings.u_step;
+                let i_changed = channel_settings.i_ctrl != new_channel_settings.i_ctrl;
+
+                if u_changed {
+                    self.max_controller.set_target_voltage(
                         channel,
                         new_channel_settings.u_ctrl,
-                        &mut bus.ecp5,
+                        new_channel_settings.u_step,
                     );
                 }
 
-                if channel_settings.i_ctrl != new_channel_settings.i_ctrl {
+                if i_changed {
                     self.max_controller.set_current(
                         channel,
                         new_channel_settings.i_ctrl,
@@ -182,7 +183,8 @@ impl Devices<Settings, Telemetry> for HvSupIsol {
     fn telemetry(&mut self) -> (Telemetry, u16) {
         let mut telemetry = Telemetry::default();
         self.bus.lock(|bus| {
-            for (i, channel) in [(0, Channel::A), (1, Channel::B)] {
+            for channel in Channel::get_all() {
+                let i = channel as usize;
                 telemetry.channels[i].voltage =
                     self.max_controller.read_voltage(channel, &mut bus.ecp5);
                 telemetry.channels[i].current =
@@ -199,7 +201,8 @@ impl Devices<Settings, Telemetry> for HvSupIsol {
                 telemetry.channels[1].current *= -1.0;
             }
 
-            self.board_controller.read_io(IoPin::Interlock, &mut bus.ecp5);
+            self.board_controller
+                .read_io(IoPin::Interlock, &mut bus.ecp5);
             telemetry.temp = self
                 .board_controller
                 .read_temp(&mut bus.cpcis_i2c, &mut bus.servmod);
@@ -210,31 +213,26 @@ impl Devices<Settings, Telemetry> for HvSupIsol {
 
     fn check_interrupt(&mut self) {
         self.bus.lock(|bus| {
-            // self.interlock_high = self
-            //     .board_controller
-            //     .read_io(IoPin::Interlock, &mut bus.ecp5);
+            self.interlock_high = self
+                .board_controller
+                .read_io(IoPin::Interlock, &mut bus.ecp5);
+            self.board_controller.clear_interrupts(&mut bus.ecp5);
 
-            // // TODO(Adrian) - remove this log
-            // log::info!("HVSUP INT: interock = {}", self.interlock_high);
+            // TODO(Adrian) - remove this log
+            log::info!("HVSUP INT: interock = {}", self.interlock_high);
 
-            // if !self.settings.master_mode {
-            //     let state = self.interlock_high && self.settings.hv_enable;
-            //     // self.board_controller.switch_hv_enable(state, &mut bus.ecp5);
-            // }
-            // let mut data = [0u8; 2];
-            // bus.ecp5.read_interrupts(1, &mut data);
-            let mut data = [0xffu8; 2];
-            bus.ecp5.write_clear_interrupts(1, &mut data);
-            // log::info!("Handling INT");
-            // log::info!("INT state: 1: {}, 2: {}", data[0], data[1]);
+            if !self.settings.master_mode {
+                let state = self.interlock_high && self.settings.hv_enable;
+                self.board_controller.switch_hv_enable(state, &mut bus.ecp5);
+                for channel in Channel::get_all() {
+                    self.max_controller.switch_output(channel, state, &mut bus.ecp5);
+                }
+            }
         });
     }
 
-    fn poll(&mut self) -> u16 {
-        100
-    }
-
-    fn need_poll(&mut self) -> bool {
-        true
+    fn poll(&mut self) -> u32 {
+        self.bus
+            .lock(|bus| self.max_controller.update_voltage(&mut bus.ecp5))
     }
 }

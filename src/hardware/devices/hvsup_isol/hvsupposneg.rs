@@ -1,5 +1,5 @@
 
-use crate::hardware::setup::BusReference;
+use crate::hardware::{setup::BusReference, SystemTimer};
 use core::ops::{Deref, DerefMut};
 use super::{HvSupIsol, OutputVariant};
 

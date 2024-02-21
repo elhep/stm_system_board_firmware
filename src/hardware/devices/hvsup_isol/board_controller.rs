@@ -39,8 +39,7 @@ impl BoardController {
     pub fn init(&self, ecp5: &mut ECP5) {
         let data = BoardController::HV_EN_MASK | BoardController::PSU_EN_MASK;
         ecp5.write_oe(self.slot, &[0, data]);
-        let mut data = [0xffu8; 2];
-        ecp5.write_clear_interrupts(self.slot, &mut data);
+        self.clear_interrupts(ecp5);
     }
 
     pub fn switch_psu_enable(&mut self, state: bool, ecp5: &mut ECP5) {
@@ -100,7 +99,6 @@ impl BoardController {
     pub fn read_io(&self, pin: IoPin, ecp5: &mut ECP5) -> bool {
         let mut data = [0u8; 2];
         ecp5.read_inputs(self.slot, &mut data);
-        log::info!("IO PINS 1: {}; 2: {}", data[0], data[1]);
         (data[1] & pin.mask()) > 0
     }
 
@@ -131,6 +129,11 @@ impl BoardController {
             8 => servmod.7.set_high().unwrap(),
             _ => log::info!("HVSUP received incorrect slot!"),
         };
+    }
+
+    pub fn clear_interrupts(&self, ecp5: &mut ECP5) {
+        let mut data = [0xffu8; 2];
+        ecp5.write_clear_interrupts(self.slot, &mut data);
     }
 
     // TODO(Adrina) - Remove
