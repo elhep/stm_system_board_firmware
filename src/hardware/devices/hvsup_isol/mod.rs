@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use self::board_controller::{BoardController, IoPin};
 use self::max_controller::{Channel, MaxController};
-use self::timer::Timer;
+use mono_clock::embedded_time::duration::Milliseconds;
 
 pub mod board_controller;
 pub mod max_controller;
@@ -39,6 +39,8 @@ pub struct Settings {
     channels_settings: [HvChannelSettings; 2],
     master_mode: bool,
     hv_enable: bool,
+    a_to_b_delay: f32,
+    interlock_delay: f32,
     pub telemetry_period: u16,
 }
 
@@ -48,6 +50,8 @@ impl Default for Settings {
             channels_settings: [HvChannelSettings::default(); 2],
             master_mode: true,
             hv_enable: false,
+            a_to_b_delay: 0.0,
+            interlock_delay: 0.0,
             telemetry_period: 250,
         }
     }
@@ -151,21 +155,30 @@ impl Devices<Settings, Telemetry> for HvSupIsol {
                 let channel_settings = &self.settings.channels_settings[i];
                 let new_channel_settings = &new_settings.channels_settings[i];
 
-                self.max_controller.switch_output(
-                    channel,
-                    new_channel_settings.enable && hv_enable,
-                    &mut bus.ecp5,
-                );
-
                 let u_changed = channel_settings.u_ctrl != new_channel_settings.u_ctrl
                     || channel_settings.u_step != new_channel_settings.u_step;
                 let i_changed = channel_settings.i_ctrl != new_channel_settings.i_ctrl;
+
+                let interlock_delay = if new_settings.master_mode {
+                    new_settings.interlock_delay
+                } else {
+                    0.0
+                };
+                let delay = new_settings.a_to_b_delay;
+                let delay = match channel {
+                    Channel::A if delay >= 0.0 => delay,
+                    Channel::B if delay < 0.0 => delay * -1.0,
+                    _ => 0.0,
+                } + interlock_delay;
+
+                let delay = Milliseconds::new((delay * 1000.0) as u32);
 
                 if u_changed {
                     self.max_controller.set_target_voltage(
                         channel,
                         new_channel_settings.u_ctrl,
                         new_channel_settings.u_step,
+                        delay,
                     );
                 }
 
@@ -176,6 +189,12 @@ impl Devices<Settings, Telemetry> for HvSupIsol {
                         &mut bus.ecp5,
                     );
                 }
+
+                self.max_controller.switch_output(
+                    channel,
+                    new_channel_settings.enable && hv_enable,
+                    &mut bus.ecp5,
+                );
             }
         });
         self.settings = new_settings;
@@ -225,7 +244,8 @@ impl Devices<Settings, Telemetry> for HvSupIsol {
                 let state = self.interlock_high && self.settings.hv_enable;
                 self.board_controller.switch_hv_enable(state, &mut bus.ecp5);
                 for channel in Channel::get_all() {
-                    self.max_controller.switch_output(channel, state, &mut bus.ecp5);
+                    self.max_controller
+                        .switch_output(channel, state, &mut bus.ecp5);
                 }
             }
         });

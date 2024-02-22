@@ -2,7 +2,6 @@ use minimq::embedded_time::Clock;
 
 use super::timer::Timer;
 use crate::hardware::devices::max1329::*;
-use crate::hardware::SystemTimer;
 use crate::hardware::{ecp5, ecp5::ECP5};
 use mono_clock::embedded_time::{duration::Milliseconds, Instant};
 
@@ -23,7 +22,9 @@ struct ChannelSettings {
     current_voltage: u16,
     target_voltage: u16,
     step: f32,
+    delay: Milliseconds,
     last_update: Instant<Timer>,
+    on_since: Instant<Timer>,
     on: bool,
 }
 
@@ -33,7 +34,9 @@ impl Default for ChannelSettings {
             current_voltage: 0,
             target_voltage: 0,
             step: 0.0,
+            delay: Milliseconds::new(0),
             last_update: Instant::new(0),
+            on_since: Instant::new(0),
             on: false,
         }
     }
@@ -111,21 +114,24 @@ impl MaxController {
         let val: u8 = if state { 0xF0 } else { 0xFF };
         Max1329::set_dpio_setup_register(self.slot, ecp5, val);
 
-        let i = channel as usize;
-        if state {
-            self.channel_settings[i].on = true;
-            self.channel_settings[i].last_update = self.timer.try_now().unwrap();
-        } else {
-            self.channel_settings[i].on = false;
-            self.channel_settings[i].current_voltage = 0;
+        let settings = &mut self.channel_settings[channel as usize];
+
+        if state && !settings.on {
+            settings.on = true;
+            settings.last_update = self.timer.try_now().unwrap();
+            settings.on_since = self.timer.try_now().unwrap();
+        } else if !state {
+            settings.on = false;
+            settings.current_voltage = 0;
             self.set_voltage(channel, 0, ecp5);
         }
     }
 
-    pub fn set_target_voltage(&mut self, channel: Channel, voltage: u16, step: f32) {
+    pub fn set_target_voltage(&mut self, channel: Channel, voltage: u16, step: f32, delay: Milliseconds) {
         let settings = &mut self.channel_settings[channel as usize];
         settings.target_voltage = voltage;
         settings.step = step;
+        settings.delay = delay;
     }
 
     pub fn set_current(&self, channel: Channel, current: u16, ecp5: &mut ECP5) {
@@ -170,7 +176,9 @@ impl MaxController {
             let i = channel as usize;
             let settings = &mut self.channel_settings[i];
 
-            if !settings.on || settings.current_voltage == settings.target_voltage {
+            let delay = Milliseconds::<u32>::try_from(now - settings.on_since).unwrap();
+
+            if !settings.on || settings.current_voltage == settings.target_voltage || delay < settings.delay {
                 continue;
             }
 
