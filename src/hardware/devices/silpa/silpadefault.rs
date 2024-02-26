@@ -1,5 +1,6 @@
 use heapless::sorted_linked_list::Max;
 use micromath::F32Ext;
+use crate::hardware::eeprom::{read_detector_coefficients, SiLPADetector};
 use crate::hardware::setup::BackPlaneI2C;
 use crate::hardware::{ServMod, self};
 use crate::hardware::devices::max1329::adc::AdcCode;
@@ -78,7 +79,7 @@ impl Default for Settings{
             adc_lt_threshold: 0x000,
             dacs_enable     : [false, false],
             channels_locked : [false, false],
-            channels_thyst  : [31.0, 31.0], // Temperatura powrotu do normalnej pracy
+            channels_thyst  : [20.0, 20.0], // Temperatura powrotu do normalnej pracy
             channels_tos    : [35.0, 35.0], // Temperatura odlaczenia kanalu z powodu przegrzania  
             dacs_value      : [0.0, 0.0],
             telemetry_period: 2,
@@ -125,8 +126,6 @@ pub mod ECP5_INPUTS{
 }
 
 pub struct SilpaDefault{
-    backplane_i2c : BackPlaneI2C,
-    detector : hardware::eeprom::SiLPADetector,
 }
 
 impl Variants for SilpaDefault{
@@ -169,7 +168,14 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         Max1329::set_dpio_setup_register(1,  ecp5, 0x03);
         Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::ADC | max1329::GTA | max1329::LTA));   
         
+        hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_000, self.settings.channels_tos[0]);
+        hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_001, self.settings.channels_tos[1]);
         
+        hardware::lm75a::set_thyst(&mut self.backplane.i2c, 0b1001_000, self.settings.channels_thyst[0]);
+        hardware::lm75a::set_thyst(&mut self.backplane.i2c, 0b1001_001, self.settings.channels_thyst[1]);
+
+        
+        self.detector = read_detector_coefficients(&mut self.backplane.i2c);
         true
     }
 

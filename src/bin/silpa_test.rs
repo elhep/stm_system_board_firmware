@@ -48,7 +48,7 @@ use embedded_hal::blocking::delay::DelayMs;
 
 #[rtic::app(device = stm_sys_board::hardware::hal::stm32, peripherals = true, dispatchers=[DCMI, JPEG, LTDC, SDMMC])]
 mod app {
-    use embedded_hal::digital::v2::OutputPin;
+    // use embedded_hal::digital::v2::OutputPin;
     use stm_sys_board::hardware::setup::BackPlaneI2C;
     //use stm_sys_board::hardware::ecp5;
     use super::*;
@@ -111,28 +111,17 @@ mod app {
         let mut device0 = Device0Type::new(5, back_plane);
 
         device0.init(&mut ecp5);
-        
-        device0.backplane.servmod.4.set_low().unwrap();
-
-        hardware::eeprom::test_eeprom(&mut device0.backplane.i2c, 0b1010_000).unwrap();
 
 
-        let mut detector_coefficients : [f32; 4] = [34.0, -34.71, 34.0, -34.71];
-        hardware::eeprom::test_example_coefficients(&mut device0.backplane.i2c, 0b1010_000, &mut detector_coefficients);
-        let mut silpa_detector = hardware::eeprom::SiLPADetector::new(detector_coefficients[0],
-                                                                                detector_coefficients[1], 
-                                                                                detector_coefficients[2], 
-                                                                                detector_coefficients[3]);
+        // let mut detector_coefficients : [f32; 4] = [34.0, -34.71, 34.0, -34.71];
+        // hardware::eeprom::test_example_coefficients(&mut device0.backplane.i2c, 0b1010_000, &mut detector_coefficients);
+        // let mut silpa_detector = hardware::eeprom::SiLPADetector::new(detector_coefficients[0],
+        //                                                                         detector_coefficients[1], 
+        //                                                                         detector_coefficients[2], 
+        //                                                                         detector_coefficients[3]);
 
 
-
-        log::info!("Ustawienie TOS w CH1: {}", device0.settings.channels_tos[0]);
-        hardware::lm75a::set_tos(&mut device0.backplane.i2c, 0b1001_000, device0.settings.channels_tos[0]);
-        hardware::lm75a::set_thyst(&mut device0.backplane.i2c, 0b1001_000, device0.settings.channels_thyst[0]);
-        let tos = hardware::lm75a::read_tos(&mut device0.backplane.i2c, 0b1001_000);
-        log::info!("Ustawiona wartość TOSw CH1 : {}", tos);
-
-        silpa_detector.set_coefficients(device0.slot, &mut device0.backplane.i2c, &mut device0.backplane.servmod); // Po tej funkcji servmod jest w stanie high
+        // silpa_detector.set_coefficients(device0.slot, &mut device0.backplane.i2c, &mut device0.backplane.servmod); // Po tej funkcji servmod jest w stanie high
 
         
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(

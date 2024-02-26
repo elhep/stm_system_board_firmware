@@ -32,37 +32,6 @@ impl SiLPADetector{
                 channel_2_slope: ch2_slope, 
                 channel_2_intercept: ch2_intercept}
     }
-    
-    pub fn set_coefficients<T>(&mut self, slot : u8, i2c: &mut T, servmod: &mut ServMod)
-    where 
-        T: WriteRead,
-    {
-        log::info!("---Set Coeeficients---");
-        match slot{
-            1 => servmod.0.set_low().unwrap(), 
-            2 => servmod.1.set_low().unwrap(),
-            3 => servmod.2.set_low().unwrap(),
-            4 => servmod.3.set_low().unwrap(),
-            5 => servmod.4.set_low().unwrap(),
-            6 => servmod.5.set_low().unwrap(),
-            7 => servmod.6.set_low().unwrap(),
-            8 => servmod.7.set_low().unwrap(),
-            _ => log::info!("Incorrect Slot Number")
-        };
-        (self.channel_1_slope, self.channel_1_intercept, self.channel_2_slope, self.channel_2_intercept) = read_detector_coefficients(i2c);
-        
-        match slot{
-            1 => servmod.0.set_high().unwrap(), 
-            2 => servmod.1.set_high().unwrap(),
-            3 => servmod.2.set_high().unwrap(),
-            4 => servmod.3.set_high().unwrap(),
-            5 => servmod.4.set_high().unwrap(),
-            6 => servmod.5.set_high().unwrap(),
-            7 => servmod.6.set_high().unwrap(),
-            8 => servmod.7.set_high().unwrap(),
-            _ => log::info!("Incorrect Slot Number")
-        };
-    }
 }
 
 pub fn read_eui48<T>(i2c: &mut T, delay: &mut impl DelayMs<u8>) -> [u8; 6]
@@ -138,7 +107,7 @@ where
     Ok(())
 }
 
-pub fn read_detector_coefficients<T>(i2c: &mut T) -> (f32, f32, f32, f32)
+pub fn read_detector_coefficients<T>(i2c: &mut T) -> SiLPADetector
 where
     T: WriteRead,
 {
@@ -200,8 +169,8 @@ where
         }
     }
 
-
-    (channel_1_slope, channel_1_intercept, channel_2_slope, channel_2_intercept)
+    let detector = SiLPADetector::new(channel_1_slope, channel_1_intercept, channel_2_slope, channel_2_intercept);
+    return detector
 }
 
 pub fn test_example_coefficients<T>(i2c: &mut T, address: u8, data : &mut [f32]) -> ()
@@ -242,10 +211,10 @@ where
     // Odczytanie przykładowych współczynników
     let mut detector_coefficients : [f32; 4] = [0.0; 4];
 
-        (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(i2c);
+    //    / (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(i2c);
 
-        // log::info!("Przykładowe wartości parametrów do testów: {} {} {} {}",    data[0].to_bits() as u32, data[1].to_bits() as u32, data[2].to_bits() as u32, data[3].to_bits() as u32);
-        log::info!("Odczytane wartości z eepromu:              {} {} {} {}",    detector_coefficients[0].to_bits() as u32, detector_coefficients[1].to_bits() as u32, 
-                                                                                detector_coefficients[2].to_bits() as u32, detector_coefficients[3].to_bits() as u32);
+        // // log::info!("Przykładowe wartości parametrów do testów: {} {} {} {}",    data[0].to_bits() as u32, data[1].to_bits() as u32, data[2].to_bits() as u32, data[3].to_bits() as u32);
+        // log::info!("Odczytane wartości z eepromu:              {} {} {} {}",    detector_coefficients[0].to_bits() as u32, detector_coefficients[1].to_bits() as u32, 
+        //                                                                         detector_coefficients[2].to_bits() as u32, detector_coefficients[3].to_bits() as u32);
 
 }
