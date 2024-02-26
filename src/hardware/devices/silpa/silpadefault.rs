@@ -1,5 +1,6 @@
 use heapless::sorted_linked_list::Max;
 use micromath::F32Ext;
+use crate::hardware::setup::BackPlaneI2C;
 use crate::hardware::{ServMod, self};
 use crate::hardware::devices::max1329::adc::AdcCode;
 use crate::hardware::devices::{Devices, Variants};
@@ -123,7 +124,11 @@ pub mod ECP5_INPUTS{
     pub const CHANNEL2 : u8 = 0x02;
 }
 
-pub struct SilpaDefault{}
+pub struct SilpaDefault{
+    backplane_i2c : BackPlaneI2C,
+    detector : hardware::eeprom::SiLPADetector,
+}
+
 impl Variants for SilpaDefault{
     type VariantSettings = Settings;
     type VariantTelemetry = Telemetry;
@@ -136,25 +141,26 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         // TODO IO and switch control
         // Internal OSC, Disabled CLKIO out, ADC clock Divider = 1, Acquisition clocks 4 (G=1,2) or 8 (G=4, 8)
 
-        Max1329::set_clock_control_register(self.slot, ecp5, 0b01000001);
-        // Int active low, RST1 interrupt, charge-pump On 3V,
-        // CP clock divider: 64 (57 kHz with internal OSC, suggested between 39k - 78kHz)
-        Max1329::set_cpvm_control_register(self.slot, ecp5, 0b01000101);
-        // ADC Master Clock Cycles - 32 - For Internal OSC -> 115,2 ksps
-        // Reference: disable REFADJ and internal REF ADC/DAC buffers (AJD -> REFADC, ADJ -> REFDAC),
-        // apply external references directly at REFADC and REFDAC pins
-        Max1329::set_adc_control_register(self.slot, ecp5, adc::AutoConversion::Clk32,
-                                                           adc::PowerDownConf::Normal,
-                                                           adc::RefConf::ExtBuffOff,);
-        // Default Setup ADC input: Ain1, ADC gain 1, Unipolar mode (Default MUX SEL is 0) //TODO configure ADC
-        // Max1329::set_adc_setup_direct()
+        Max1329::setup_ecp5_spi_master(1, ecp5, 0);
+        Max1329::reset_device(1, ecp5);
 
+        Max1329::set_clock_control_register(1, ecp5, 0b0100_0011);
+        Max1329::set_cpvm_control_register(1, ecp5, 0b0100_1001);
 
+        Max1329::set_adc_control_register(1, ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, max1329::adc::RefConf::Int2_5);
+        Max1329::set_dac_control(1,  ecp5,
+                                max1329::dac::PowerDownConf::InOut,
+                                max1329::dac::PowerDownConf::InOut,
+                                max1329::dac::OpAmp::Disable,
+                                max1329::dac::RefConf::Int2_5);
 
+        Max1329::set_daca_value(1, ecp5, 0b0000_1000_1111_0101); // 1.4 V na wyjsciu DAC, -2 dBm na wejsciu detektora,
+        Max1329::set_dacb_value(1, ecp5, 0b0000_0010_1111_0101); 
 
-        // Enable ADC Data Ready and GT & LT interrupts
-        Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::ADD | max1329::GTA | max1329::LTA));
+        Max1329::set_dpio_control_register(1, ecp5, 0xFFFF);
+        Max1329::set_dpio_setup_register(1,  ecp5, 0x03);
 
+        Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::ADC | max1329::GTA | max1329::LTA));   
         true
     }
 
