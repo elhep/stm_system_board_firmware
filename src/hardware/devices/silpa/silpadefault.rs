@@ -139,28 +139,37 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 {
     fn init(&mut self, ecp5: &mut ECP5) -> bool {
         // TODO IO and switch control
-        // Internal OSC, Disabled CLKIO out, ADC clock Divider = 1, Acquisition clocks 4 (G=1,2) or 8 (G=4, 8)
+
+        // Piny, bity do write_output, read_output
+        //  4 - input, przerwanie z kanalu pierwszego
+        //  5 - input, przerwanie z kanalu drugiego
+        //  6 - output, resetowanie kanalu pierwszego
+        //  7 - output, resetowanie kanalu pierwszego
+
+        ecp5.write_oe(1, &mut [0, 192]);
+        ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]);
+        ecp5.write_outputs(1, &mut [0, 128]);
+        ecp5.write_outputs(1, &mut [0, 0]);
+
+        ecp5.write_interrupts_mask(1, &mut [0, 48]);
 
         Max1329::setup_ecp5_spi_master(1, ecp5, 0);
         Max1329::reset_device(1, ecp5);
-
         Max1329::set_clock_control_register(1, ecp5, 0b0100_0011);
         Max1329::set_cpvm_control_register(1, ecp5, 0b0100_1001);
-
         Max1329::set_adc_control_register(1, ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, max1329::adc::RefConf::Int2_5);
         Max1329::set_dac_control(1,  ecp5,
                                 max1329::dac::PowerDownConf::InOut,
                                 max1329::dac::PowerDownConf::InOut,
                                 max1329::dac::OpAmp::Disable,
                                 max1329::dac::RefConf::Int2_5);
-
         Max1329::set_daca_value(1, ecp5, 0b0000_1000_1111_0101); // 1.4 V na wyjsciu DAC, -2 dBm na wejsciu detektora,
         Max1329::set_dacb_value(1, ecp5, 0b0000_0010_1111_0101); 
-
         Max1329::set_dpio_control_register(1, ecp5, 0xFFFF);
         Max1329::set_dpio_setup_register(1,  ecp5, 0x03);
-
         Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::ADC | max1329::GTA | max1329::LTA));   
+        
+        
         true
     }
 
@@ -284,7 +293,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         //     self.adc_lt_alarm(ecp5);
         // }
 
-        if (status & max1329::ADD) != 0 {
+        if (status & max1329::ADC) != 0 {
             self.telemetry.adc = Max1329::read_adc_data_register(1, ecp5);
         }
     }

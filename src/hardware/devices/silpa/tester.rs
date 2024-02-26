@@ -108,7 +108,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaTester>
 
 
         // Enable ADC Data Ready and GT & LT interrupts
-        Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::ADD | max1329::GTA | max1329::LTA));
+        Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::ADC | max1329::GTA | max1329::LTA));
 
         true
     }
@@ -163,7 +163,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaTester>
             self.adc_lt_alarm(ecp5);
         }
 
-        if (status & max1329::ADD) != 0 {
+        if (status & max1329::ADC) != 0 {
             self.telemetry.adc = Max1329::read_adc_data_register(self.slot, ecp5);
         }
     }

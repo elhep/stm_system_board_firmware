@@ -234,7 +234,7 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
             // DPIO1 output, DPIO2-4 input.
             Max1329::set_dpio_control_register(self.slot, ecp5, 0x000F);
             // Enable ADC Data Ready interrupt
-            Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::ADD));
+            Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::ADC));
 
             // Enable DACs
             Max1329::set_dac_control(self.slot, ecp5, dac::PowerDownConf::InToOut,
@@ -305,7 +305,7 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
 
             let status : u32 = Max1329::read_status_register(self.slot, ecp5);
 
-            if (status & max1329::ADD) != 0 {
+            if (status & max1329::ADC) != 0 {
                     self.read_adc_data(ecp5, i);
             }
 

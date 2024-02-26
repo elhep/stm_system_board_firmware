@@ -49,10 +49,6 @@ use embedded_hal::blocking::delay::DelayMs;
 #[rtic::app(device = stm_sys_board::hardware::hal::stm32, peripherals = true, dispatchers=[DCMI, JPEG, LTDC, SDMMC])]
 mod app {
     use embedded_hal::digital::v2::OutputPin;
-    //use heapless::binary_heap::Max;
-    use stm_sys_board::hardware::devices::max1329;
-    // use stm_sys_board::hardware::devices::max1329::adc;
-    use stm_sys_board::hardware::devices::max1329::Max1329;
     use stm_sys_board::hardware::setup::BackPlaneI2C;
     //use stm_sys_board::hardware::ecp5;
     use super::*;
@@ -113,7 +109,6 @@ mod app {
         let servmod = stm_sys_board.servmod;
         let back_plane = BackPlaneI2C{i2c: i2c_bp, servmod};
         let mut device0 = Device0Type::new(5, back_plane);
-        let mut array : [u8; 2] = [0x00, 0x00];
 
         device0.init(&mut ecp5);
         
@@ -145,39 +140,6 @@ mod app {
         ));
 
         delay.delay_ms(1000 as u32);
-        ecp5.read_from_ecp5(40, &mut array).unwrap();
-        ecp5.read_from_ecp5(41, &mut array).unwrap();
-        ecp5.read_inputs(1, &mut array);
-
-
-        delay.delay_ms(1000 as u32);
-
-        ecp5.read_oe(1, &mut array);
-        log::info!("Odczyt OE: {} {}", array[1], array[0]);
-
-        let mut outputs_value : [u8; 2] = [0, 128];
-        let mut outputs_enable : [u8; 2] = [0, 192];
-
-        ecp5.write_oe(1, &mut outputs_enable);
-        ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]);
-
-
-        ecp5.write_outputs(1, &mut outputs_value);
-
-        // Piny, bity do write_output, read_output
-        //  4 - input, przerwanie z kanalu pierwszego
-        //  5 - input, przerwanie z kanalu drugiego
-        //  6 - output, resetowanie kanalu pierwszego
-        //  7 - output, resetowanie kanalu pierwszego
-
-
-        outputs_value = [0, 0];
-        ecp5.write_outputs(1, &mut outputs_value);
-
-        ecp5.read_interrupts_mask(1, &mut array);
-        log::info!("Odczyt interrupt mask: {} {}", array[1], array[0]);
-        let mut interrupt_mask : [u8; 2] = [0, 0b0011_0000]; // (4) - CH1 locked, (5) - CH2 locked
-        ecp5.write_interrupts_mask(1, &mut interrupt_mask);
         
         // if device0.init(&mut ecp5){
         //     telemetry0::spawn().unwrap();
