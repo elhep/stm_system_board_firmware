@@ -5,7 +5,7 @@ use crate::hardware::devices::max1329::*;
 use crate::hardware::{ecp5, ecp5::ECP5};
 use mono_clock::embedded_time::{duration::Milliseconds, Instant};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Channel {
     A,
     B,
@@ -19,8 +19,8 @@ impl Channel {
 
 #[derive(Clone, Copy)]
 struct ChannelSettings {
-    current_voltage: u16,
-    target_voltage: u16,
+    current_voltage: f32,
+    target_voltage: f32,
     step: f32,
     delay: Milliseconds,
     last_update: Instant<Timer>,
@@ -31,8 +31,8 @@ struct ChannelSettings {
 impl Default for ChannelSettings {
     fn default() -> Self {
         ChannelSettings {
-            current_voltage: 0,
-            target_voltage: 0,
+            current_voltage: 0.0,
+            target_voltage: 0.0,
             step: 0.0,
             delay: Milliseconds::new(0),
             last_update: Instant::new(0),
@@ -122,14 +122,20 @@ impl MaxController {
             settings.on_since = self.timer.try_now().unwrap();
         } else if !state {
             settings.on = false;
-            settings.current_voltage = 0;
-            self.set_voltage(channel, 0, ecp5);
+            settings.current_voltage = 0.0;
+            self.set_voltage(channel, 0.0, ecp5);
         }
     }
 
-    pub fn set_target_voltage(&mut self, channel: Channel, voltage: u16, step: f32, delay: Milliseconds) {
+    pub fn set_target_voltage(
+        &mut self,
+        channel: Channel,
+        voltage: u16,
+        step: f32,
+        delay: Milliseconds,
+    ) {
         let settings = &mut self.channel_settings[channel as usize];
-        settings.target_voltage = voltage;
+        settings.target_voltage = voltage as f32;
         settings.step = step;
         settings.delay = delay;
     }
@@ -170,6 +176,7 @@ impl MaxController {
     }
 
     pub fn update_voltage(&mut self, ecp5: &mut ECP5) -> u32 {
+        const EPS: f32 = 0.1;
         self.timer.update(MaxController::UPDATE_PERIOD);
         let now = self.timer.try_now().unwrap();
         for channel in Channel::get_all() {
@@ -178,19 +185,30 @@ impl MaxController {
 
             let delay = Milliseconds::<u32>::try_from(now - settings.on_since).unwrap();
 
-            if !settings.on || settings.current_voltage == settings.target_voltage || delay < settings.delay {
+            if !settings.on
+                || abs(settings.current_voltage - settings.target_voltage) < EPS
+                || delay < settings.delay
+            {
+                settings.last_update = now;
                 continue;
             }
 
             let elapsed = Milliseconds::<u32>::try_from(now - settings.last_update)
                 .unwrap()
-                .0;
-            let mut new_voltage =
-                settings.current_voltage + (elapsed as f32 * settings.step) as u16;
+                .0 as f32;
+            let step = elapsed * settings.step / 1000.0;
 
-            if new_voltage > settings.target_voltage {
-                new_voltage = settings.target_voltage;
-            }
+            let new_voltage = if settings.current_voltage < settings.target_voltage {
+                match settings.current_voltage + step {
+                    new @ _ if new > settings.target_voltage => settings.target_voltage,
+                    new @ _ => new,
+                }
+            } else {
+                match settings.current_voltage - step {
+                    new @ _ if new < settings.target_voltage => settings.target_voltage,
+                    new @ _ => new,
+                }
+            };
 
             settings.current_voltage = new_voltage;
             settings.last_update = now;
@@ -218,10 +236,19 @@ impl MaxController {
         ecp5.set_spi_cs_pol(self.slot, index);
     }
 
-    fn set_voltage(&self, channel: Channel, voltage: u16, ecp5: &mut ECP5) {
+    fn set_voltage(&self, channel: Channel, voltage: f32, ecp5: &mut ECP5) {
+        log::info!("Setting voltage to: {}", voltage);
         self.switch_cs(channel, ecp5);
         let new_u = voltage as f64;
         let u_control = (new_u / MaxController::U_MAX * MaxController::DAC_MAX) as u16;
         Max1329::set_daca_value(self.slot, ecp5, u_control);
+    }
+}
+
+fn abs(num: f32) -> f32 {
+    if num >= 0.0 {
+        num
+    } else {
+        -num
     }
 }
