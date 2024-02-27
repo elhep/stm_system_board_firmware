@@ -237,7 +237,6 @@ impl MaxController {
     }
 
     fn set_voltage(&self, channel: Channel, voltage: f32, ecp5: &mut ECP5) {
-        log::info!("Setting voltage to: {}", voltage);
         self.switch_cs(channel, ecp5);
         let new_u = voltage as f64;
         let u_control = (new_u / MaxController::U_MAX * MaxController::DAC_MAX) as u16;

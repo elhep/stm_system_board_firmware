@@ -52,7 +52,6 @@ impl BoardController {
     }
 
     pub fn switch_hv_enable(&mut self, state: bool, ecp5: &mut ECP5) {
-        log::info!("Switching HV_EN to: {}",  state);
         if state {
             self.outputs[1] |= BoardController::HV_EN_MASK;
         } else {

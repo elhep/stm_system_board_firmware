@@ -141,15 +141,10 @@ impl Devices<Settings, Telemetry> for HvSupIsol {
     }
 
     fn settings_update(&mut self, new_settings: Settings) -> () {
-        log::info!("Settings HV_EN: {}", new_settings.hv_enable);
-        log::info!("Settings Interlock Mode: {}", new_settings.interlock_mode);
-
         let hv_enable = match new_settings.interlock_mode {
             true => self.interlock_high && new_settings.hv_enable,
             false => new_settings.hv_enable,
         };
-
-        log::info!("Calculated HV_EN: {}", hv_enable);
 
         self.bus.lock(|bus| {
             self.board_controller
@@ -157,7 +152,6 @@ impl Devices<Settings, Telemetry> for HvSupIsol {
 
             for channel in Channel::get_all() {
                 let i = channel as usize;
-                let channel_settings = &self.settings.channels_settings[i];
                 let new_channel_settings = &new_settings.channels_settings[i];
 
                 let interlock_delay = if new_settings.interlock_mode {
@@ -171,8 +165,6 @@ impl Devices<Settings, Telemetry> for HvSupIsol {
                     Channel::B if delay < 0.0 => delay * -1.0,
                     _ => 0.0,
                 } + interlock_delay;
-
-                log::info!("Delay for channel {:?}: {}", channel, delay);
 
                 let delay = Milliseconds::new((delay * 1000.0) as u32);
 
@@ -235,9 +227,6 @@ impl Devices<Settings, Telemetry> for HvSupIsol {
                 .board_controller
                 .read_io(IoPin::Interlock, &mut bus.ecp5);
             self.board_controller.clear_interrupts(&mut bus.ecp5);
-
-            // TODO(Adrian) - remove this log
-            log::info!("HVSUP INT: interock = {}", self.interlock_high);
 
             if self.settings.interlock_mode {
                 let state = self.interlock_high && self.settings.hv_enable;
