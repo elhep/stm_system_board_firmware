@@ -39,11 +39,11 @@ where
     let mut buffer : [u8; 3] = [0; 3];
     buffer[0] = TOS_REG;
     if (tos < 0.0){
-        buffer[1] = 0x01;
-        buffer[2] = ((128.0 + tos) * 2.0) as u8;
+        buffer[1] = (tos as u8);
+        buffer[2] = (((128.0 + tos) * 2.0) as u8) << 7;
     } else {
         buffer[1] = 0x00;
-        buffer[2] = (tos * 2.0) as u8;
+        buffer[2] = ((tos * 2.0) as u8) << 7;
     }
     // buffer[1] = temp >> 1;
     // buffer[2] = temp << 7;

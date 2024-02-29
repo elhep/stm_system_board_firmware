@@ -112,17 +112,6 @@ mod app {
 
         device0.init(&mut ecp5);
 
-
-        // let mut detector_coefficients : [f32; 4] = [34.0, -34.71, 34.0, -34.71];
-        // hardware::eeprom::test_example_coefficients(&mut device0.backplane.i2c, 0b1010_000, &mut detector_coefficients);
-        // let mut silpa_detector = hardware::eeprom::SiLPADetector::new(detector_coefficients[0],
-        //                                                                         detector_coefficients[1], 
-        //                                                                         detector_coefficients[2], 
-        //                                                                         detector_coefficients[3]);
-
-
-        // silpa_detector.set_coefficients(device0.slot, &mut device0.backplane.i2c, &mut device0.backplane.servmod); // Po tej funkcji servmod jest w stanie high
-
         
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
             400000000,
@@ -186,37 +175,6 @@ mod app {
             None => {},
             }
         });
-
-                            // if device0.settings.dacs_value[0] != dev_settings.dacs_value[0] {
-                    //     log::info!("Zmiana wartosci Threshold CH1: {}", dev_settings.dacs_value[0]);
-                    //     device0.calculate_dac_value(silpa_detector.channel_1_slope, silpa_detector.channel_1_intercept, dev_settings.dacs_value[0], 1, ecp5)
-                    // },
-
-                    // if device0.settings.dacs_value[1] != dev_settings.dacs_value[1] {
-                    //     log::info!("Zmiana wartosci Threshold CH2: {}", dev_settings.dacs_value[1]);
-                    //     device0.calculate_dac_value(silpa_detector.channel_1_slope, silpa_detector.channel_1_intercept, dev_settings.dacs_value[1], 2, ecp5)
-                    // },
-
-                    // if device0.settings.channels_tos[0] != dev_settings.channels_tos[0]{
-                    //     log::info!("Zmiana wartosci TOS CH1: {}", dev_settings.channels_tos[0]);
-                    //     hardware::lm75a::set_tos(&mut back_plane.i2c, hardware::lm75a::I2C_ADDR[0], dev_settings.channels_tos[0])
-                    // },
-
-                    // if device0.settings.channels_tos[1] != dev_settings.channels_tos[1]{
-                    //     log::info!("Zmiana wartosci TOS CH2: {}", dev_settings.channels_tos[1]);
-                    //     hardware::lm75a::set_tos(&mut back_plane.i2c, hardware::lm75a::I2C_ADDR[1], dev_settings.channels_tos[1])
-                    // },
-
-                    // if device0.settings.channels_thyst[0] != dev_settings.channels_thyst[0]{
-                    //     log::info!("Zmiana wartosci THYST CH1: {}", dev_settings.channels_thyst[0]);
-                    //     hardware::lm75a::set_thyst(&mut back_plane.i2c, hardware::lm75a::I2C_ADDR[0], dev_settings.channels_thyst[0])
-                    // },
-
-                    // if device0.settings.channels_thyst[1] != dev_settings.channels_thyst[1]{
-                    //     log::info!("Zmiana wartosci THYST CH2: {}", dev_settings.channels_thyst[1]);
-                    //     hardware::lm75a::set_thyst(&mut back_plane.i2c, hardware::lm75a::I2C_ADDR[1], dev_settings.channels_thyst[1])
-                    // },
-
     }
 
     #[task(priority = 1, shared=[network, ecp5, device0])]
@@ -254,17 +212,6 @@ mod app {
         
         (ecp5, device0).lock(| ecp5, device|
             (
-                ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]),
-                // if device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 1) > device.settings.channels_tos[0] {
-                //     device.settings.channels_locked[0] = true;
-                //     log::info!("Przekroczenie temperatury CH1");
-                // },
-
-                // if device.check_temperature(&mut back_plane.i2c, &mut back_plane.servmod, 2) > device.settings.channels_tos[1] {
-                //     device.settings.channels_locked[1] = true;
-                //     log::info!("Przekroczenie temperatury CH2");
-                // },
-
                 device.check_interrupt(ecp5)
             )
 

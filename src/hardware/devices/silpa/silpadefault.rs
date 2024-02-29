@@ -114,8 +114,8 @@ impl Telemetry{
 }
 
 pub mod ECP5_Interrupts{
-    pub const CHANNEL1_INACTIVE : u8 = 0x40;
-    pub const CHANNEL2_INACTIVE : u8 = 0x80;
+    pub const CHANNEL1_INACTIVE : u8 = 0x10;
+    pub const CHANNEL2_INACTIVE : u8 = 0x20;
     pub const CHANNEL1_INPUT_BIT : u8 = 4;
     pub const CHANNEL2_INPUT_BIT : u8 = 5;
 }
@@ -182,19 +182,19 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
     fn settings_update(&mut self, ecp5: &mut ECP5, new_settings: Settings) -> () {
         // Update MAX1329 only if settings changed
         if self.settings.adc_gt_threshold != new_settings.adc_gt_threshold {
-            Max1329::set_adc_gt_alarm_register(self.slot, ecp5, adc::AlarmMode::NonConsecutive,
+            Max1329::set_adc_gt_alarm_register(1, ecp5, adc::AlarmMode::NonConsecutive,
                                                                 1,
                                                                 new_settings.adc_gt_threshold);
         }
 
         if self.settings.adc_lt_threshold != new_settings.adc_lt_threshold {
-            Max1329::set_adc_lt_alarm_register(self.slot, ecp5, adc::AlarmMode::NonConsecutive,
+            Max1329::set_adc_lt_alarm_register(1, ecp5, adc::AlarmMode::NonConsecutive,
                                                                 1,
                                                                 new_settings.adc_lt_threshold);
         }
 
         if self.settings.dacs_enable != new_settings.dacs_enable {
-            Max1329::set_dac_control(self.slot, ecp5, match new_settings.dacs_enable[0] { true => dac::PowerDownConf::InToOut,
+            Max1329::set_dac_control(1, ecp5, match new_settings.dacs_enable[0] { true => dac::PowerDownConf::InToOut,
                                                                                           false => dac::PowerDownConf::PowerDown,},
                                                       match new_settings.dacs_enable[1] { true => dac::PowerDownConf::InToOut,
                                                                                           false => dac::PowerDownConf::PowerDown,},
@@ -202,8 +202,29 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                                                       dac::RefConf::Ext1_0,);
         }
 
+        for n in 0..1 {
+            if (self.settings.dacs_value[n] != new_settings.dacs_value[n]) & self.settings.dacs_enable[n] == true {
+                self.calculate_dac_value(new_settings.dacs_value[n], (n + 1) as u8, ecp5)
+            } 
+
+            if self.settings.channels_tos[n] != new_settings.channels_tos[n] {
+                self.toggle_servmod(0);
+                hardware::lm75a::set_tos(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[n], new_settings.channels_tos[n]);
+                self.toggle_servmod(1);
+            }
+
+            if self.settings.channels_thyst[n] != new_settings.channels_thyst[n]{
+                self.toggle_servmod(0);
+                hardware::lm75a::set_thyst(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[n], new_settings.channels_thyst[n]);
+                self.toggle_servmod(1);   
+            }
+        }
+
+
+
         if self.settings.channels_locked != new_settings.channels_locked {
-            let ecp5_inputs : [u8; 2] = [0x00, 0x00];
+            let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
+            ecp5.read_inputs(1, &mut ecp5_inputs);
 
             if self.settings.channels_locked[0] != new_settings.channels_locked[0] {
                 log::info!("Odblokowywanie CH1");
@@ -212,11 +233,11 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             if self.settings.channels_locked[1] != new_settings.channels_locked[1] {
                 log::info!("Odblokowywanie CH2");
             }
-            // if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL1) == 0{
+            // if ecp5_inputs[1] & (1 << ECP5_INPUTS::CHANNEL1) == 0{
             //     self.activate_channel(ecp5, 1);
             // }
 
-            // if ecp5_inputs[0] & (1 << ECP5_INPUTS::CHANNEL2) == 0{
+            // if ecp5_inputs[1] & (1 << ECP5_INPUTS::CHANNEL2) == 0{
             //     self.activate_channel(ecp5, 2);
             // }         
         }
@@ -232,7 +253,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         }
         
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        // log::info!("Wartosc z ADC1: {}", adc_val.0);
+        log::info!("Wartosc z ADC1: {}", adc_val.0);
         // log::info!("Moc wejsciowa na CH1: {}", vrms_to_dbm_converter((adc_val.0 as f32) * 2.5 / 4095.0 /1.5));
 
         Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::OUTA_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
@@ -240,7 +261,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         }
         
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        // log::info!("Wartosc z DAC1: {}", adc_val.0);
+        log::info!("Wartosc z DAC1: {}", adc_val.0);
 
 
         self.telemetry.set_ch1_output_power_field(adc_val);
@@ -250,7 +271,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         } 
 
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        // log::info!("Wartosc z ADC2: {}", adc_val.0);
+        log::info!("Wartosc z ADC2: {}", adc_val.0);
         // log::info!("Moc wejsciowa na CH1: {}", vrms_to_dbm_converter((adc_val.0 as f32) * 2.5 / 4095.0 /1.5));
 
         Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::OUTB_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
@@ -258,7 +279,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         }
         
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        // log::info!("Wartosc z DAC2: {}", adc_val.0);
+        log::info!("Wartosc z DAC2: {}", adc_val.0);
 
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
         self.telemetry.set_ch2_output_power_field(adc_val);
@@ -269,39 +290,26 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
     fn check_interrupt(&mut self, ecp5: &mut ECP5) {
 
         // ODczyt inputow z FPGA //
+        ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]);
         let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
         ecp5.read_inputs(1, &mut ecp5_inputs);
+        log::info!("Wartości na wejściach ECP5: {} {}", ecp5_inputs[0], ecp5_inputs[1]);
 
         // Opis lini LVDS:
         // - 4 - input, Kanal 1, '1' - input odciety, '0' - sygnal jest wzmacniany
         // - 5 - input, Kanal 2, '1' - input odciety, '0' - sygnal jest wzmacniany
         // - 6 - output - Kanal 1, '1' ustawienie na '1' resetuje uklad i dziala
         // - 7 - output - Kanal 2, '1' ustawienie na '1' resetuje uklad i dziala
-        if (ecp5_inputs[0] & ECP5_Interrupts::CHANNEL1_INACTIVE == ECP5_Interrupts::CHANNEL1_INACTIVE) {
+        if (ecp5_inputs[1] & ECP5_Interrupts::CHANNEL1_INACTIVE == ECP5_Interrupts::CHANNEL1_INACTIVE) {
             self.settings.channels_locked[0] = true;
+            log::info!("Zablokowano kanał 1");
         }
 
-        if (ecp5_inputs[0] & ECP5_Interrupts::CHANNEL2_INACTIVE == ECP5_Interrupts::CHANNEL2_INACTIVE) {
+        if (ecp5_inputs[1] & ECP5_Interrupts::CHANNEL2_INACTIVE == ECP5_Interrupts::CHANNEL2_INACTIVE) {
             self.settings.channels_locked[1] = true;
-        }
-        
-        // TODO zmapowanie inputow na odpowiednie piny z Silpy
-        // Sprawdzic co dany input robi //
-        // WYjscia outputow z lm sa zwarte wiec mamy or i to jest sugestia ze temp zostal przekroczona podwojnie
-
-        let status : u32 = Max1329::read_status_register(1, ecp5);
-
-        if (status & max1329::GTA) != 0 {
-            self.adc_gt_alarm(ecp5);
+            log::info!("Zablokowano kanał 2");
         }
 
-        // if (status & max1329::LTA) != 0 {
-        //     self.adc_lt_alarm(ecp5);
-        // }
-
-        if (status & max1329::ADC) != 0 {
-            self.telemetry.adc = Max1329::read_adc_data_register(1, ecp5);
-        }
     }
 }
 
@@ -314,6 +322,33 @@ impl SiLPA<SilpaDefault>
     // fn adc_lt_alarm(&self, _ecp5: &mut ECP5){
 
     // }
+    pub fn toggle_servmod(&mut self, state : u8){
+        if state == 0 {
+            match self.slot{
+                1 => self.backplane.servmod.0.set_low().unwrap(), 
+                2 => self.backplane.servmod.1.set_low().unwrap(),
+                3 => self.backplane.servmod.2.set_low().unwrap(),
+                4 => self.backplane.servmod.3.set_low().unwrap(),
+                5 => self.backplane.servmod.4.set_low().unwrap(),
+                6 => self.backplane.servmod.5.set_low().unwrap(),
+                7 => self.backplane.servmod.6.set_low().unwrap(),
+                8 => self.backplane.servmod.7.set_low().unwrap(),
+                _ => log::info!("Incorrect Slot Number")
+            };
+        } else if state == 1 {
+            match self.slot{
+                1 => self.backplane.servmod.0.set_high().unwrap(), 
+                2 => self.backplane.servmod.1.set_high().unwrap(),
+                3 => self.backplane.servmod.2.set_high().unwrap(),
+                4 => self.backplane.servmod.3.set_high().unwrap(),
+                5 => self.backplane.servmod.4.set_high().unwrap(),
+                6 => self.backplane.servmod.5.set_high().unwrap(),
+                7 => self.backplane.servmod.6.set_high().unwrap(),
+                8 => self.backplane.servmod.7.set_high().unwrap(),
+                _ => log::info!("Incorrect Slot Number")
+            };  
+        }
+    }
 
     pub fn check_temperature<T>(&mut self, i2c: &mut T, servmod: &mut ServMod, channel : u8) -> f32
         where 
@@ -387,7 +422,25 @@ impl SiLPA<SilpaDefault>
         }
     }
 
-    pub fn calculate_dac_value(&mut self, slope : f32, intercept : f32, ptreshold : f32, channel : u8, ecp5: &mut ECP5){
+    pub fn calculate_dac_value(&mut self, ptreshold : f32, channel : u8, ecp5: &mut ECP5){
+
+        //TODO add calculations to bit value in OP Amp detector
+        match channel{
+            1 => {
+                Max1329::set_daca_value(1, ecp5, 0b0000_0010_1000_0011);
+                // Max1329::set_daca_value(1, ecp5, bit_value);
+                self.settings.dacs_value[0] = ptreshold;
+            },
+            2 => {
+                // Max1329::set_dacb_value(1, ecp5, bit_value); // Zamienic na self.slot
+                Max1329::set_dacb_value(1, ecp5, 0b0000_0010_1000_0011);
+                self.settings.dacs_value[1] = ptreshold;
+            },
+            _ => log::info!("Incorrect channel nubmer"),  
+        }    
+    }
+
+    pub fn calculate_dac_detector_value(&mut self, slope : f32, intercept : f32, ptreshold : f32, channel : u8, ecp5: &mut ECP5){
         let vin_detector = slope * (f32::sqrt(0.05 /f32::log10((ptreshold - 26.0)/10.0)) - intercept);
         let bit_value : u16 = (vin_detector/1000.0 * 4095.0/ 2.5) as u16;  // 26 dB pochodzi z dzielnika 1k i 50 Ohm 
         // Dzielenie przez 1000 aby zamienic na V z mV
