@@ -73,3 +73,12 @@ where
     buffer[2] = (temp << 7) & 0x80;
     let _ = i2c.write(dev_addr, &buffer);
 }
+
+pub fn read_thyst<T>(i2c: &mut T, dev_addr : u8) -> f32
+where 
+    T : WriteRead + Write + Read,
+{
+    let mut buffer : [u8; 2] = [0; 2];
+    let _ = i2c.write_read(dev_addr, &[THYST_REG], &mut buffer);
+    return (buffer[1] * 2) as f32;
+}

@@ -93,7 +93,7 @@ mod app {
             // .parse()
             // .unwrap(),
             option_env!("BROKER")
-                .unwrap_or("192.168.95.145") // Ustawic adres brokera ("127.0.0.1")
+                .unwrap_or("192.168.95.157") // Ustawic adres brokera ("127.0.0.1")
                 .parse()
                 .unwrap(),
             Settings::default(),
@@ -179,7 +179,7 @@ mod app {
 
     #[task(priority = 1, shared=[network, ecp5, device0])]
     fn telemetry0(mut c: telemetry0::Context) {
-        log::info!("----------- Telemetry --------------");
+        // log::info!("----------- Telemetry --------------");
 
         let (telemetry, telemetry_period) = c.shared.ecp5.lock(|ecp5| c.shared.device0.lock(|device| 
             (

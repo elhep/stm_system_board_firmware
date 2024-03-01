@@ -79,7 +79,7 @@ impl Default for Settings{
             adc_lt_threshold: 0x000,
             dacs_enable     : [false, false],
             channels_locked : [false, false],
-            channels_thyst  : [20.0, 20.0], // Temperatura powrotu do normalnej pracy
+            channels_thyst  : [10.0, 10.0], // Temperatura powrotu do normalnej pracy
             channels_tos    : [35.0, 35.0], // Temperatura odlaczenia kanalu z powodu przegrzania  
             dacs_value      : [0.0, 0.0],
             telemetry_period: 2,
@@ -147,8 +147,6 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 
         ecp5.write_oe(1, &mut [0, 192]);
         ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]);
-        ecp5.write_outputs(1, &mut [0, 128]);
-        ecp5.write_outputs(1, &mut [0, 0]);
 
         ecp5.write_interrupts_mask(1, &mut [0, 48]);
 
@@ -166,16 +164,22 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         Max1329::set_dacb_value(1, ecp5, 0b0000_0010_1111_0101); 
         Max1329::set_dpio_control_register(1, ecp5, 0xFFFF);
         Max1329::set_dpio_setup_register(1,  ecp5, 0x03);
-        Max1329::set_interrupt_mask_register(self.slot, ecp5, !(max1329::ADC | max1329::GTA | max1329::LTA));   
+        Max1329::set_interrupt_mask_register(1, ecp5, !(max1329::ADC | max1329::GTA | max1329::LTA));   
         
+        ecp5.write_outputs(1, &mut [0, 128]);
+        ecp5.write_outputs(1, &mut [0, 0]);
+
+        self.toggle_servmod(0);
         hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_000, self.settings.channels_tos[0]);
         hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_001, self.settings.channels_tos[1]);
+        let tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, 0b1001_000);
+        log::info!("Init TOS: {}", tos);
         
         hardware::lm75a::set_thyst(&mut self.backplane.i2c, 0b1001_000, self.settings.channels_thyst[0]);
-        hardware::lm75a::set_thyst(&mut self.backplane.i2c, 0b1001_001, self.settings.channels_thyst[1]);
-
+        hardware::lm75a::set_thyst(&mut self.backplane.i2c, 0b1001_001, self.settings.channels_thyst[1]);    
         
         self.detector = read_detector_coefficients(&mut self.backplane.i2c);
+        self.toggle_servmod(1);
         true
     }
 
@@ -200,22 +204,28 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                                                                                           false => dac::PowerDownConf::PowerDown,},
                                                       dac::OpAmp::Disable,
                                                       dac::RefConf::Ext1_0,);
+            log::info!("DACS Enable: {} {}", new_settings.dacs_enable[0], new_settings.dacs_enable[1]);
         }
 
-        for n in 0..1 {
+        for n in 0..2 {
             if (self.settings.dacs_value[n] != new_settings.dacs_value[n]) & self.settings.dacs_enable[n] == true {
-                self.calculate_dac_value(new_settings.dacs_value[n], (n + 1) as u8, ecp5)
+                self.calculate_dac_value(new_settings.dacs_value[n], (n + 1) as u8, ecp5);
+                log::info!("Zmiana Wartosci DAC {}: {}", n, new_settings.dacs_value[n]);
             } 
 
             if self.settings.channels_tos[n] != new_settings.channels_tos[n] {
                 self.toggle_servmod(0);
-                hardware::lm75a::set_tos(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[n], new_settings.channels_tos[n]);
+                hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_000, new_settings.channels_tos[n]);
+                let tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[n]);
+                log::info!("TOS {}: {}", n, tos);
                 self.toggle_servmod(1);
             }
 
             if self.settings.channels_thyst[n] != new_settings.channels_thyst[n]{
                 self.toggle_servmod(0);
                 hardware::lm75a::set_thyst(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[n], new_settings.channels_thyst[n]);
+                let thyst = hardware::lm75a::read_thyst(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[n]);
+                log::info!("THYST {}: {}", n, thyst);
                 self.toggle_servmod(1);   
             }
         }
@@ -247,13 +257,16 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 
     fn telemetry(&mut self, ecp5: &mut ECP5) -> (Telemetry, u16) {
 
-
+        for n in 0..2{
+            let mut temp1 = self.check_temperature(n + 1);
+            log::info!("TEMP {}: {}", n, temp1);
+        }
         Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
         }
         
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        log::info!("Wartosc z ADC1: {}", adc_val.0);
+        // log::info!("Wartosc z ADC1: {}", adc_val.0);
         // log::info!("Moc wejsciowa na CH1: {}", vrms_to_dbm_converter((adc_val.0 as f32) * 2.5 / 4095.0 /1.5));
 
         Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::OUTA_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
@@ -261,7 +274,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         }
         
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        log::info!("Wartosc z DAC1: {}", adc_val.0);
+        // log::info!("Wartosc z DAC1: {}", adc_val.0);
 
 
         self.telemetry.set_ch1_output_power_field(adc_val);
@@ -271,7 +284,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         } 
 
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        log::info!("Wartosc z ADC2: {}", adc_val.0);
+        // log::info!("Wartosc z ADC2: {}", adc_val.0);
         // log::info!("Moc wejsciowa na CH1: {}", vrms_to_dbm_converter((adc_val.0 as f32) * 2.5 / 4095.0 /1.5));
 
         Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::OUTB_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
@@ -279,7 +292,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         }
         
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        log::info!("Wartosc z DAC2: {}", adc_val.0);
+        // log::info!("Wartosc z DAC2: {}", adc_val.0);
 
         let adc_val = Max1329::read_adc_data_register(1, ecp5);
         self.telemetry.set_ch2_output_power_field(adc_val);
@@ -350,9 +363,7 @@ impl SiLPA<SilpaDefault>
         }
     }
 
-    pub fn check_temperature<T>(&mut self, i2c: &mut T, servmod: &mut ServMod, channel : u8) -> f32
-        where 
-        T: Read,    
+    pub fn check_temperature(&mut self, channel : u8) -> f32   
     { 
         let address : u8;
         match channel{
@@ -362,18 +373,18 @@ impl SiLPA<SilpaDefault>
         };
         
         match self.slot{
-            1 => servmod.0.set_low().unwrap(), 
-            2 => servmod.1.set_low().unwrap(),
-            3 => servmod.2.set_low().unwrap(),
-            4 => servmod.3.set_low().unwrap(),
-            5 => servmod.4.set_low().unwrap(),
-            6 => servmod.5.set_low().unwrap(),
-            7 => servmod.6.set_low().unwrap(),
-            8 => servmod.7.set_low().unwrap(),
+            1 => self.backplane.servmod.0.set_low().unwrap(), 
+            2 => self.backplane.servmod.1.set_low().unwrap(),
+            3 => self.backplane.servmod.2.set_low().unwrap(),
+            4 => self.backplane.servmod.3.set_low().unwrap(),
+            5 => self.backplane.servmod.4.set_low().unwrap(),
+            6 => self.backplane.servmod.5.set_low().unwrap(),
+            7 => self.backplane.servmod.6.set_low().unwrap(),
+            8 => self.backplane.servmod.7.set_low().unwrap(),
             _ => log::info!("Incorrect Slot Number")
         };
 
-        match hardware::lm75a::read_temp(i2c, address){ // Addr 0x48
+        match hardware::lm75a::read_temp(&mut self.backplane.i2c, address){ // Addr 0x48
             Ok(temp) => {
                             match channel{
                                 1 => self.telemetry.set_ch1_temperature(temp),
@@ -382,14 +393,14 @@ impl SiLPA<SilpaDefault>
                             }
                             
                             match self.slot{
-                                1 => servmod.0.set_high().unwrap(), 
-                                2 => servmod.1.set_high().unwrap(),
-                                3 => servmod.2.set_high().unwrap(),
-                                4 => servmod.3.set_high().unwrap(),
-                                5 => servmod.4.set_high().unwrap(),
-                                6 => servmod.5.set_high().unwrap(),
-                                7 => servmod.6.set_high().unwrap(),
-                                8 => servmod.7.set_high().unwrap(),
+                                2 => self.backplane.servmod.0.set_high().unwrap(),
+                                1 => self.backplane.servmod.1.set_high().unwrap(), 
+                                3 => self.backplane.servmod.2.set_high().unwrap(),
+                                4 => self.backplane.servmod.3.set_high().unwrap(),
+                                5 => self.backplane.servmod.4.set_high().unwrap(),
+                                6 => self.backplane.servmod.5.set_high().unwrap(),
+                                7 => self.backplane.servmod.6.set_high().unwrap(),
+                                8 => self.backplane.servmod.7.set_high().unwrap(),
                                 _ => log::info!("Incorrect Slot Number")
                             };
                             return temp;
