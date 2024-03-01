@@ -348,9 +348,9 @@ mod app {
         });
     }
 
-    #[task(priority = 1, shared=[network, device0])]
+    #[task(priority = 1, shared=[network, ecp5,  device0])]
     fn telemetry0(mut c: telemetry0::Context) {
-        let (telemetry, telemetry_period) = c.shared.device0.lock(|device| (device.telemetry()));
+        let (telemetry, telemetry_period) = c.shared.ecp5.lock(|ecp5| (c.shared.device0.lock(|device| (device.telemetry(ecp5)))));
 
         c.shared.network.lock(|net| net.telemetry.publish(DEVICE0_TELEMETRY_PREFIX, &telemetry));
 
