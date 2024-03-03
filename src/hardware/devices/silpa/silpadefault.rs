@@ -126,6 +126,7 @@ pub mod ECP5_INPUTS{
 }
 
 pub struct SilpaDefault{
+    x : u8
 }
 
 impl Variants for SilpaDefault{
@@ -161,7 +162,13 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                                 max1329::dac::OpAmp::Disable,
                                 max1329::dac::RefConf::Int2_5);
         Max1329::set_daca_value(1, ecp5, 0b0000_1000_1111_0101); // 1.4 V na wyjsciu DAC, -2 dBm na wejsciu detektora,
+        let mut data = Max1329::read_daca_value(1, ecp5);
+        assert_eq!(0b0000_1000_1111_0101, data, "DACA correct Value");
+
         Max1329::set_dacb_value(1, ecp5, 0b0000_0010_1111_0101); 
+        data = Max1329::read_dacb_value(1, ecp5);
+        assert_eq!(0b0000_0010_1111_0101, data, "DACB correct Value");
+
         Max1329::set_dpio_control_register(1, ecp5, 0xFFFF);
         Max1329::set_dpio_setup_register(1,  ecp5, 0x03);
         Max1329::set_interrupt_mask_register(1, ecp5, !(max1329::ADC | max1329::GTA | max1329::LTA));   
@@ -169,14 +176,25 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         ecp5.write_outputs(1, &mut [0, 128]);
         ecp5.write_outputs(1, &mut [0, 0]);
 
+
+        log::info!("Testy LM75 I2C w Init()");
         self.toggle_servmod(0);
+
         hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_000, self.settings.channels_tos[0]);
+        let mut tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, 0b1001_000);
+        assert_eq!(self.settings.channels_tos[0], tos, "TOS check CH1");
+
         hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_001, self.settings.channels_tos[1]);
-        let tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, 0b1001_000);
-        log::info!("Init TOS: {}", tos);
+        tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, 0b1001_001);
+        assert_eq!(self.settings.channels_tos[0], tos, "TOS check CH2");
         
         hardware::lm75a::set_thyst(&mut self.backplane.i2c, 0b1001_000, self.settings.channels_thyst[0]);
-        hardware::lm75a::set_thyst(&mut self.backplane.i2c, 0b1001_001, self.settings.channels_thyst[1]);    
+        let mut thyst = hardware::lm75a::read_thyst(&mut self.backplane.i2c, 0b1001_000);
+        assert_eq!(self.settings.channels_tos[0], thyst, "THYST check CH1");
+
+        hardware::lm75a::set_thyst(&mut self.backplane.i2c, 0b1001_001, self.settings.channels_thyst[1]);
+        thyst = hardware::lm75a::read_thyst(&mut self.backplane.i2c, 0b1001_001);
+        assert_eq!(self.settings.channels_tos[0], thyst, "THYST check CH2");    
         
         self.detector = read_detector_coefficients(&mut self.backplane.i2c);
         self.toggle_servmod(1);
@@ -207,28 +225,28 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             log::info!("DACS Enable: {} {}", new_settings.dacs_enable[0], new_settings.dacs_enable[1]);
         }
 
-        for n in 0..2 {
-            if (self.settings.dacs_value[n] != new_settings.dacs_value[n]) & self.settings.dacs_enable[n] == true {
-                self.calculate_dac_value(new_settings.dacs_value[n], (n + 1) as u8, ecp5);
-                log::info!("Zmiana Wartosci DAC {}: {}", n, new_settings.dacs_value[n]);
-            } 
+        // for n in 0..2 {
+        //     if (self.settings.dacs_value[n] != new_settings.dacs_value[n]) & self.settings.dacs_enable[n] == true {
+        //         self.calculate_dac_value(new_settings.dacs_value[n], (n + 1) as u8, ecp5);
+        //         log::info!("Zmiana Wartosci DAC {}: {}", n, new_settings.dacs_value[n]);
+        //     } 
 
-            if self.settings.channels_tos[n] != new_settings.channels_tos[n] {
-                self.toggle_servmod(0);
-                hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_000, new_settings.channels_tos[n]);
-                let tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[n]);
-                log::info!("TOS {}: {}", n, tos);
-                self.toggle_servmod(1);
-            }
+        //     if self.settings.channels_tos[n] != new_settings.channels_tos[n] {
+        //         self.toggle_servmod(0);
+        //         hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_000, new_settings.channels_tos[n]);
+        //         let tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[n]);
+        //         log::info!("TOS {}: {}", n, tos);
+        //         self.toggle_servmod(1);
+        //     }
 
-            if self.settings.channels_thyst[n] != new_settings.channels_thyst[n]{
-                self.toggle_servmod(0);
-                hardware::lm75a::set_thyst(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[n], new_settings.channels_thyst[n]);
-                let thyst = hardware::lm75a::read_thyst(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[n]);
-                log::info!("THYST {}: {}", n, thyst);
-                self.toggle_servmod(1);   
-            }
-        }
+        //     if self.settings.channels_thyst[n] != new_settings.channels_thyst[n]{
+        //         self.toggle_servmod(0);
+        //         hardware::lm75a::set_thyst(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[n], new_settings.channels_thyst[n]);
+        //         let thyst = hardware::lm75a::read_thyst(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[n]);
+        //         log::info!("THYST {}: {}", n, thyst);
+        //         self.toggle_servmod(1);   
+        //     }
+        // }
 
 
 

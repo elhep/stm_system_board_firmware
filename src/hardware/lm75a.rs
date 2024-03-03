@@ -38,16 +38,14 @@ where
 
     let mut buffer : [u8; 3] = [0; 3];
     buffer[0] = TOS_REG;
-    if (tos < 0.0){
-        buffer[1] = (tos as u8);
-        buffer[2] = (((128.0 + tos) * 2.0) as u8) << 7;
-    } else {
-        buffer[1] = 0x00;
-        buffer[2] = ((tos * 2.0) as u8) << 7;
+    buffer[1] = temp >> 1;
+    buffer[2] = temp << 7;
+    match i2c.write(dev_addr, &buffer) {
+        Ok(()) => {
+          log::info!("TOS written correctly")  
+        },
+        Err(_e) => panic!("Error writing TOS Register"),
     }
-    // buffer[1] = temp >> 1;
-    // buffer[2] = temp << 7;
-    let _ = i2c.write(dev_addr, &buffer);
 }
 
 pub fn read_tos<T>(i2c: &mut T, dev_addr : u8) -> f32
@@ -55,10 +53,13 @@ where
     T : WriteRead + Write + Read,
 {
     let mut buffer : [u8; 2] = [0; 2];
-    let _ = i2c.write_read(dev_addr, &[TOS_REG], &mut buffer);
-    // let _ = i2c.read(dev_addr, &mut buffer);
-    log::info!("{}, {}", buffer[0], buffer[1]);
-    return (buffer[1] * 2) as f32;
+    match i2c.write_read(dev_addr, &[TOS_REG], &mut buffer) {
+        Ok(()) => {
+            log::info!("{}, {}", buffer[0], buffer[1]);
+            return (buffer[1] * 2) as f32;    
+        },
+        Err(_e) => panic!("Error reading TOS"),    
+    }
 }
 
 pub fn set_thyst<T>(i2c: &mut T, dev_addr: u8, thyst: f32) -> ()
@@ -70,8 +71,13 @@ where
     let mut buffer : [u8; 3] = [0; 3]; 
     buffer[0] = THYST_REG;
     buffer[1] = temp >> 1;
-    buffer[2] = (temp << 7) & 0x80;
-    let _ = i2c.write(dev_addr, &buffer);
+    buffer[2] = temp << 7;
+    match i2c.write(dev_addr, &buffer) {
+        Ok(()) => {
+          log::info!("THYST written correctly")  
+        },
+        Err(e) => panic!("Error writing THYST Register"),
+    }
 }
 
 pub fn read_thyst<T>(i2c: &mut T, dev_addr : u8) -> f32
@@ -79,6 +85,11 @@ where
     T : WriteRead + Write + Read,
 {
     let mut buffer : [u8; 2] = [0; 2];
-    let _ = i2c.write_read(dev_addr, &[THYST_REG], &mut buffer);
-    return (buffer[1] * 2) as f32;
+    match i2c.write_read(dev_addr, &[THYST_REG], &mut buffer) {
+        Ok(()) => {
+            log::info!("{}, {}", buffer[0], buffer[1]);
+            return (buffer[1] * 2) as f32;    
+        },
+        Err(_e) => panic!("Error reading TOS"),    
+    }
 }
