@@ -2,6 +2,7 @@ import paho.mqtt.client as paho
 import time
 import random
 import Connect;
+import json
 
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code", rc)
@@ -9,6 +10,8 @@ def on_connect(client, userdata, flags, rc):
 
 def on_message(client, userdata, msg):
     print(msg.topic, msg.payload)
+
+MQTT_MSG=json.dumps({"sepalLength": ["6.4", "2.2"],"sepalWidth":  "3.2","petalLength": "4.5","petalWidth":  "1.5"})
 
 PythonClient = paho.Client()
 print("Łączenie")
@@ -36,9 +39,11 @@ while(True):
     # print("{} A".format(r))
 
     
-    # r = random.randint(500, 550)
-    # PythonClient.publish("Power", str(r))
-    # print("{} W".format(r))
+    r = random.randint(500, 550)
+    PythonClient.publish("Power", str(r))
+    print("{} W".format(r))
 
-    # time.sleep(10)
-    PythonClient.loop_forever()
+    time.sleep(2)
+    PythonClient.publish("dt/sinara/silpa_test/fc-0f-e7-23-49-bc/settings/s0_silpadefault/telemetry", MQTT_MSG)
+    print("Wysyłanie wiadomości")
+    # PythonClient.loop_forever()
