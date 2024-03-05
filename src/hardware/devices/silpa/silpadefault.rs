@@ -1,5 +1,8 @@
+use embedded_hal::blocking::delay::DelayMs;
 use heapless::sorted_linked_list::Max;
 use micromath::F32Ext;
+use smoltcp_nal::smoltcp::wire::ArpHardware;
+use stm32h7xx_hal::i2c::Stop;
 use crate::hardware::eeprom::{read_detector_coefficients, SiLPADetector};
 use crate::hardware::setup::BackPlaneI2C;
 use crate::hardware::{ServMod, self};
@@ -14,7 +17,7 @@ use crate::hardware::ecp5::ECP5;
 use crate::hardware::devices::max1329::{self, Max1329,adc, dac};
 
 
-use embedded_hal::blocking::i2c::{WriteRead, Read};
+use embedded_hal::blocking::i2c::{Read, Write, WriteRead};
 pub mod AMPLIFIER_PARAMETERS{
     pub const TOTAL_GAIN : f32 = 56.0; //Gain w dB
     pub const DIVIDER_RATIO : f32 = 0.0; //Dzielnik 82 i 1k     
@@ -207,6 +210,12 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 
     fn settings_update(&mut self, ecp5: &mut ECP5, new_settings: Settings) -> () {
         // Update MAX1329 only if settings changed
+        let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
+            400000000,
+        ));
+
+    
+
         if self.settings.adc_gt_threshold != new_settings.adc_gt_threshold {
             Max1329::set_adc_gt_alarm_register(1, ecp5, adc::AlarmMode::NonConsecutive,
                                                                 1,
@@ -252,6 +261,17 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         //     }
         // }
 
+        if self.settings.channels_tos[0] != new_settings.channels_tos[0] {
+            self.toggle_servmod(0);
+            self.backplane.i2c.master_write(0b1001_000, 1, Stop::Automatic);
+            self.backplane.i2c.master_stop();
+
+            hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_000, new_settings.channels_tos[0]);
+            let tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[0]);
+            log::info!("TOS {}: {}", 0, tos);
+            self.toggle_servmod(1);
+            log::info!("Zmieniono servmod");
+        }
 
 
         if self.settings.channels_locked != new_settings.channels_locked {
@@ -273,16 +293,26 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             //     self.activate_channel(ecp5, 2);
             // }         
         }
-
+        self.toggle_servmod(1);
         self.settings = new_settings;
     }
 
     fn telemetry(&mut self, ecp5: &mut ECP5) -> (Telemetry, u16) {
 
+        let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
+            400000000,
+        ));
+
+        log::info!("Odczyt temperatury");
+        self.toggle_servmod(0);
         for n in 0..2{
-            let mut temp1 = self.check_temperature(n + 1);
+            self.backplane.i2c.master_write(0b1001_000, 1, Stop::Automatic);
+            self.backplane.i2c.master_stop();
+
+            let mut temp1 = self.check_temperature(n + 1); 
             log::info!("TEMP {}: {}", n, temp1);
         }
+        self.toggle_servmod(1);
         Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
         }
@@ -394,42 +424,11 @@ impl SiLPA<SilpaDefault>
             _ => panic!("Incorrect LM75 Channel Address")     
         };
         
-        match self.slot{
-            1 => self.backplane.servmod.0.set_low().unwrap(), 
-            2 => self.backplane.servmod.1.set_low().unwrap(),
-            3 => self.backplane.servmod.2.set_low().unwrap(),
-            4 => self.backplane.servmod.3.set_low().unwrap(),
-            5 => self.backplane.servmod.4.set_low().unwrap(),
-            6 => self.backplane.servmod.5.set_low().unwrap(),
-            7 => self.backplane.servmod.6.set_low().unwrap(),
-            8 => self.backplane.servmod.7.set_low().unwrap(),
-            _ => log::info!("Incorrect Slot Number")
-        };
+        self.toggle_servmod(0);
 
-        match hardware::lm75a::read_temp(&mut self.backplane.i2c, address){ // Addr 0x48
-            Ok(temp) => {
-                            match channel{
-                                1 => self.telemetry.set_ch1_temperature(temp),
-                                2 => self.telemetry.set_ch2_temperature(temp),
-                                _ => panic!("Incorrect channel number")
-                            }
-                            
-                            match self.slot{
-                                2 => self.backplane.servmod.0.set_high().unwrap(),
-                                1 => self.backplane.servmod.1.set_high().unwrap(), 
-                                3 => self.backplane.servmod.2.set_high().unwrap(),
-                                4 => self.backplane.servmod.3.set_high().unwrap(),
-                                5 => self.backplane.servmod.4.set_high().unwrap(),
-                                6 => self.backplane.servmod.5.set_high().unwrap(),
-                                7 => self.backplane.servmod.6.set_high().unwrap(),
-                                8 => self.backplane.servmod.7.set_high().unwrap(),
-                                _ => log::info!("Incorrect Slot Number")
-                            };
-                            return temp;
-                            }
-            Err(_e) => panic!("I2C 1st LM75 on Sys_Board error!"),
-        };
-        
+        let temp = hardware::lm75a::read_temp(&mut self.backplane.i2c, address); // Addr 0x48
+        self.toggle_servmod(1);
+        return temp;
     }
 
     pub fn activate_channel(&self, ecp5 : &mut ECP5, channel : u8){
