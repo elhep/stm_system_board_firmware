@@ -221,20 +221,14 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             400000000,
         ));
 
-        // let device = stm32h7xx_hal::stm32::Peripherals::take().unwrap();
-        // let i2c = self.backplane.i2c;
-        // let mut i2c_ptr = stm32h7xx_hal::stm32::I2C4::ptr();
-        // (unsafe { *i2c_ptr }).cr1.write(|w| w.pe().disabled());
-
-        // device.I2C4.cr1.write(|w| unsafe {w.pe().enabled()});
-        // delay.delay_ms(1 as u32);
-        // device.I2C4.cr1.write(|w| unsafe {w.pe().enabled()});
-
+        // let x = stm32h7xx_hal::stm32::I2C4::ptr();
+        // unsafe { x.read().cr1.write(|w| w.pe().disabled()) };
+        // delay.delay_ms(2 as u32);
+        // unsafe { x.read().cr1.write(|w| w.pe().enabled()) };
         let x = stm32h7xx_hal::stm32::I2C4::ptr();
-        unsafe { x.read().cr1.write(|w| w.pe().disabled()) };
-        delay.delay_ms(1 as u32);
-        unsafe { x.read().cr1.write(|w| w.pe().enabled()) };
-
+        while(unsafe { x.read().isr.read().busy().bit() == true}){
+            log::info!("I2C Busy");
+        };
     
 
         if self.settings.adc_gt_threshold != new_settings.adc_gt_threshold {
@@ -323,12 +317,18 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             400000000,
         ));
 
+        
+        let x = stm32h7xx_hal::stm32::I2C4::ptr();
+        while(unsafe { x.read().isr.read().busy().bit() == true}){
+            log::info!("I2C Busy");
+        };
+
         self.toggle_servmod(0);
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
             400000000,
         ));
 
-        let device = stm32h7xx_hal::stm32::Peripherals::take();
+        // let device = stm32h7xx_hal::stm32::Peripherals::take();
         // let i2c = self.backplane.i2c;
         // let mut i2c_ptr = stm32h7xx_hal::stm32::I2C4::ptr();
         // (unsafe { *i2c_ptr }).cr1.write(|w| w.pe().disabled());
@@ -336,12 +336,13 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         // device.I2C4.cr1.write(|w| unsafe {w.pe().disabled()});
         // delay.delay_ms(1 as u32);
         // device.I2C4.cr1.write(|w| unsafe {w.pe().enabled()});
-        let y = &(self.backplane.i2c);
-        let x = stm32h7xx_hal::stm32::I2C4::ptr();
-        unsafe { x.read().cr1.write(|w| w.pe().disabled()) };
-        delay.delay_ms(2 as u32);
-        unsafe { x.read().cr1.write(|w| w.pe().enabled()) };
+        // let y = &(self.backplane.i2c);
+        // let x = stm32h7xx_hal::stm32::I2C4::ptr();
+        // unsafe { x.read().cr1.write(|w| w.pe().disabled()) };
+        // delay.delay_ms(2 as u32);
+        // unsafe { x.read().cr1.write(|w| w.pe().enabled()) };
         // self.backplane.i2c.master_stop();
+
         match hardware::lm75a::read_temp(&mut self.backplane.i2c, 0b1001_000){
             Ok(temp) =>     {log::info!("Temp 1: {}", temp);
                                 self.telemetry.set_ch1_temperature(temp);
