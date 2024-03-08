@@ -1,8 +1,13 @@
+use core::borrow::BorrowMut;
+use core::ops::DerefMut;
+
 use embedded_hal::blocking::delay::DelayMs;
 use heapless::sorted_linked_list::Max;
 use micromath::F32Ext;
 use smoltcp_nal::smoltcp::wire::ArpHardware;
 use stm32h7xx_hal::i2c::Stop;
+use stm32h7xx_hal::pac::i2c1::cr1::PE_A;
+use stm32h7xx_hal::pac::i2c1::CR1;
 use crate::hardware::eeprom::{read_detector_coefficients, SiLPADetector};
 use crate::hardware::setup::BackPlaneI2C;
 use crate::hardware::{ServMod, self};
@@ -15,6 +20,8 @@ use miniconf::Miniconf;
 use serde::Serialize;
 use crate::hardware::ecp5::ECP5;
 use crate::hardware::devices::max1329::{self, Max1329,adc, dac};
+use stm32h7xx_hal::rcc::{rec, CoreClocks, ResetEnable};
+use stm32h7xx_hal::pac::I2C4 as bp_i2c;
 
 
 use embedded_hal::blocking::i2c::{Read, Write, WriteRead};
@@ -214,6 +221,20 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             400000000,
         ));
 
+        // let device = stm32h7xx_hal::stm32::Peripherals::take().unwrap();
+        // let i2c = self.backplane.i2c;
+        // let mut i2c_ptr = stm32h7xx_hal::stm32::I2C4::ptr();
+        // (unsafe { *i2c_ptr }).cr1.write(|w| w.pe().disabled());
+
+        // device.I2C4.cr1.write(|w| unsafe {w.pe().enabled()});
+        // delay.delay_ms(1 as u32);
+        // device.I2C4.cr1.write(|w| unsafe {w.pe().enabled()});
+
+        let x = stm32h7xx_hal::stm32::I2C4::ptr();
+        unsafe { x.read().cr1.write(|w| w.pe().disabled()) };
+        delay.delay_ms(1 as u32);
+        unsafe { x.read().cr1.write(|w| w.pe().enabled()) };
+
     
 
         if self.settings.adc_gt_threshold != new_settings.adc_gt_threshold {
@@ -263,8 +284,8 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 
         if self.settings.channels_tos[0] != new_settings.channels_tos[0] {
             self.toggle_servmod(0);
-            self.backplane.i2c.master_write(0b1001_000, 1, Stop::Automatic);
-            self.backplane.i2c.master_stop();
+            // self.backplane.i2c.master_write(0b1001_000, 1, Stop::Automatic);
+            // self.backplane.i2c.master_stop();
 
             hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_000, new_settings.channels_tos[0]);
             let tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[0]);
@@ -298,20 +319,41 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
     }
 
     fn telemetry(&mut self, ecp5: &mut ECP5) -> (Telemetry, u16) {
-
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
             400000000,
         ));
 
-        log::info!("Odczyt temperatury");
         self.toggle_servmod(0);
-        for n in 0..2{
-            self.backplane.i2c.master_write(0b1001_000, 1, Stop::Automatic);
-            self.backplane.i2c.master_stop();
+        let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
+            400000000,
+        ));
 
-            let mut temp1 = self.check_temperature(n + 1); 
-            log::info!("TEMP {}: {}", n, temp1);
-        }
+        let device = stm32h7xx_hal::stm32::Peripherals::take();
+        // let i2c = self.backplane.i2c;
+        // let mut i2c_ptr = stm32h7xx_hal::stm32::I2C4::ptr();
+        // (unsafe { *i2c_ptr }).cr1.write(|w| w.pe().disabled());
+
+        // device.I2C4.cr1.write(|w| unsafe {w.pe().disabled()});
+        // delay.delay_ms(1 as u32);
+        // device.I2C4.cr1.write(|w| unsafe {w.pe().enabled()});
+        let y = &(self.backplane.i2c);
+        let x = stm32h7xx_hal::stm32::I2C4::ptr();
+        unsafe { x.read().cr1.write(|w| w.pe().disabled()) };
+        delay.delay_ms(2 as u32);
+        unsafe { x.read().cr1.write(|w| w.pe().enabled()) };
+        // self.backplane.i2c.master_stop();
+        match hardware::lm75a::read_temp(&mut self.backplane.i2c, 0b1001_000){
+            Ok(temp) =>     {log::info!("Temp 1: {}", temp);
+                                self.telemetry.set_ch1_temperature(temp);
+                                },
+            Err(e) => panic!("{:?}", e),
+        };
+        match hardware::lm75a::read_temp(&mut self.backplane.i2c, 0b1001_001){
+            Ok(temp) =>     {log::info!("Temp 1: {}", temp);
+                                self.telemetry.set_ch2_temperature(temp);
+        },
+            Err(e) => panic!("{:?}", e),
+        };
         self.toggle_servmod(1);
         Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
         while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
@@ -415,21 +457,21 @@ impl SiLPA<SilpaDefault>
         }
     }
 
-    pub fn check_temperature(&mut self, channel : u8) -> f32   
-    { 
-        let address : u8;
-        match channel{
-            1 => address = 0b1001_000,
-            2 => address = 0b1001_001,
-            _ => panic!("Incorrect LM75 Channel Address")     
-        };
+    // pub fn check_temperature(&mut self, channel : u8) -> f32   
+    // { 
+    //     let address : u8;
+    //     match channel{
+    //         1 => address = 0b1001_000,
+    //         2 => address = 0b1001_001,
+    //         _ => panic!("Incorrect LM75 Channel Address")     
+    //     };
         
-        self.toggle_servmod(0);
+    //     self.toggle_servmod(0);
 
-        let temp = hardware::lm75a::read_temp(&mut self.backplane.i2c, address); // Addr 0x48
-        self.toggle_servmod(1);
-        return temp;
-    }
+    //     let temp = hardware::lm75a::read_temp(&mut self.backplane.i2c, address); // Addr 0x48
+    //     self.toggle_servmod(1);
+    //     return temp;
+    // }
 
     pub fn activate_channel(&self, ecp5 : &mut ECP5, channel : u8){
         match channel{

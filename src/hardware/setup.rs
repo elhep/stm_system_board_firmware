@@ -120,6 +120,20 @@ pub struct BackPlaneI2C {
     pub servmod : ServMod,
 }
 
+// pub struct I2C_peripheral<T>{reference: T,}
+// impl I2C_peripheral<T> {
+//     pub fn new(refe : T) -> Self{
+//         I2C_peripheral{reference : refe}
+        
+//     }
+// }
+
+// impl BackPlaneI2C {
+//     pub fn return_i2c<T>(i2c : hal::i2c::I2c<T>) -> I2C_peripheral<T> {
+//         I2C_peripheral{reference : T}
+//     }
+// }
+
 pub struct MonBus {
     i2c: hal::i2c::I2c<hal::stm32::I2C2>,
     p_pres: MonBusTypes::P_Pres,

@@ -19,15 +19,30 @@ where
     T: WriteRead,
 {
     let mut buffer : [u8; 2] = [0; 2];
-    match i2c.write_read(dev_addr, &mut [TEMP_REG], &mut buffer){
-        Ok(()) => {
-            let mut x : f32 = 0.0;
-            if (buffer[0] & 0b1000_0000) != 0 {
-                x = -128.0;
-            }
-            Ok(x + (buffer[0] & 0b0111_1111) as f32 + 0.5 * (buffer[0] & 0b1000_0000) as f32)
-        },
-        Err(e) => Err(e),
+    let mut Reading = 1;
+    let mut Fail_cnt = 0;
+
+    // Check I2C_FLAG_BUSY
+    loop {
+    match i2c.write_read(dev_addr, &mut[TEMP_REG], &mut buffer){
+            Ok(()) => {
+                let mut x : f32 = 0.0;
+                if (buffer[0] & 0b1000_0000) != 0 {
+                    x = -128.0;
+                }
+                Reading = 0;
+                return Ok(x + (buffer[0] & 0b0111_1111) as f32 + 0.5 * (buffer[0] & 0b1000_0000) as f32)
+            },
+            Err(e) => {
+                if Reading == 1 {
+                    Fail_cnt = Fail_cnt + 1;
+                    log::info!("Fail_cnt {}", Fail_cnt);
+                    continue;
+                } else {
+                    return Err(e);
+                }
+            },
+        }
     }
 }
 
@@ -38,16 +53,29 @@ where
     T: Write,
 {
     let temp = (tos * 2.0) as u8;
+    let mut Reading = 1;
+    let mut Fail_cnt = 0;
 
     let mut buffer : [u8; 3] = [0; 3];
     buffer[0] = TOS_REG;
     buffer[1] = temp >> 1;
     buffer[2] = temp << 7;
-    match i2c.write(dev_addr, &buffer) {
-        Ok(()) => {
-          log::info!("TOS written correctly")  
-        },
-        Err(_e) => panic!("Error writing TOS Register"),
+    loop {
+        match i2c.write(dev_addr, &buffer) {
+            Ok(()) => {
+            log::info!("TOS written correctly");
+            return;  
+            },
+            Err(_e) => {
+                if Reading == 1 {
+                    Fail_cnt = Fail_cnt + 1;
+                    log::info!("Fail_cnt {}", Fail_cnt);
+                    continue;
+                } else {
+                // return Err(e);
+                }
+            },
+        }
     }
 }
 
