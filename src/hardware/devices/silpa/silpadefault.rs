@@ -160,10 +160,10 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             log::info!("I2C Busy");
         };
 
-        self.bus.lock(|bus| {
-            log::info!("Bus locked in Init()");
-            bus.ecp5.write_oe(1, &mut [0, 192]);
-        });
+        // self.bus.lock(|bus| {
+        //     log::info!("Bus locked in Init()");
+        //     bus.ecp5.write_oe(1, &mut [0, 192]);
+        // });
 
         // ecp5.write_oe(1, &mut [0, 192]);
         // ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]);

@@ -48,7 +48,8 @@ use embedded_hal::blocking::delay::DelayMs;
 
 #[rtic::app(device = stm_sys_board::hardware::hal::stm32, peripherals = true, dispatchers=[DCMI, JPEG, LTDC, SDMMC])]
 mod app {
-    use shared_bus::BusManager;
+    // use shared_bus::BusManager;
+    use crate::hardware::bus_manager::BusManager;
     // use embedded_hal::digital::v2::OutputPin;
     use stm_sys_board::hardware::setup::SlotsBus;
     //use stm_sys_board::hardware::ecp5;
@@ -101,7 +102,7 @@ mod app {
         let bus_manager = c.local.bus_manager.as_ref().unwrap();
 
         
-        let i2c = stm_sys_board.therm_i2c;
+        let _i2c = stm_sys_board.therm_i2c;
         let mut device0 = Device0Type::new(5, bus_manager.acquire_bus());
 
         device0.init();
@@ -195,7 +196,7 @@ mod app {
     fn device0_check_interrupt(c: device0_check_interrupt::Context) {
         log::info!("------------ Interrupt Check --------------");
         let device0_check_interrupt::SharedResources{
-            device0,
+            mut device0,
         } = c.shared;
 
         
