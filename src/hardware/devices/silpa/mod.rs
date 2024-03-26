@@ -2,7 +2,7 @@ pub mod silpadefault;
 pub mod alternative;
 pub mod tester;
 
-use crate::hardware::{devices::Variants, eeprom::SiLPADetector, setup::BackPlaneI2C};
+use crate::hardware::{devices::Variants, eeprom::SiLPADetector, setup::{BusReference}};
 
 
 pub struct SiLPA<U>
@@ -12,7 +12,7 @@ where
     pub slot: u8,
     pub settings: U::VariantSettings,
     pub telemetry: U::VariantTelemetryBuffer,
-    pub backplane : BackPlaneI2C,
+    pub bus: BusReference,
     pub detector : SiLPADetector
 }
 
@@ -22,14 +22,14 @@ where
 {
     pub fn new(
         slot_number : u8,
-        back_plane : BackPlaneI2C
+        bus: BusReference,
     ) -> Self
     {
         Self{
             slot: slot_number,
             settings: U::VariantSettings::default(),
             telemetry: U::VariantTelemetryBuffer::default(),
-            backplane: back_plane,
+            bus: bus,
             detector: SiLPADetector::new(0.0, 0.0, 0.0, 0.0)
         }
 

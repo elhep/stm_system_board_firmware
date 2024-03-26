@@ -53,15 +53,15 @@ impl Variants for SilpaAlternative{
 
 impl Devices  <Settings, Telemetry> for SiLPA<SilpaAlternative>
 {
-    fn init(&mut self, _ecp5: &mut ECP5) -> bool {true}
-    fn settings_update(&mut self, _ecp5: &mut ECP5, _new_settings: Settings) -> () {
+    fn init(&mut self) -> bool {true}
+    fn settings_update(&mut self, _new_settings: Settings) -> () {
 
     }
 
-    fn telemetry(&mut self, _ecp5: &mut ECP5) -> (Telemetry, u16) {
+    fn telemetry(&mut self) -> (Telemetry, u16) {
         (self.telemetry.finalize(), 10)
     }
-    fn check_interrupt(&mut self, _ecp5: &mut ECP5){}
+    fn check_interrupt(&mut self){}
 }
 
 

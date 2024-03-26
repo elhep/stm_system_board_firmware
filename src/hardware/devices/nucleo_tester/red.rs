@@ -57,9 +57,9 @@ where
     U: OutputPin,
     U::Error: Debug,
 {
-    fn init(&mut self, _ecp5: &mut ECP5) -> bool {true}
+    fn init(&mut self) -> bool {true}
 
-    fn settings_update(&mut self, _ecp5: &mut ECP5, _new_settings: Settings) -> () {
+    fn settings_update(&mut self, _new_settings: Settings) -> () {
         if self.settings.red_led{
             self.output.set_high().unwrap();
         } else {
@@ -68,9 +68,9 @@ where
     }
 
 
-    fn telemetry(&mut self, _ecp5: &mut ECP5) -> (Telemetry, u16) {
+    fn telemetry(&mut self) -> (Telemetry, u16) {
         (self.telemetry, 10)
     }
 
-    fn check_interrupt(&mut self, _ecp5: &mut ECP5){}
+    fn check_interrupt(&mut self){}
 }

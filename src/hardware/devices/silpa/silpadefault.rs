@@ -9,7 +9,7 @@ use stm32h7xx_hal::i2c::Stop;
 use stm32h7xx_hal::pac::i2c1::cr1::PE_A;
 use stm32h7xx_hal::pac::i2c1::CR1;
 use crate::hardware::eeprom::{read_detector_coefficients, SiLPADetector};
-use crate::hardware::setup::BackPlaneI2C;
+use crate::hardware::setup::{SlotsBus};
 use crate::hardware::{ServMod, self};
 use crate::hardware::devices::max1329::adc::AdcCode;
 use crate::hardware::devices::{Devices, Variants};
@@ -90,7 +90,7 @@ impl Default for Settings{
             dacs_enable     : [false, false],
             channels_locked : [false, false],
             channels_thyst  : [10.0, 10.0], // Temperatura powrotu do normalnej pracy
-            channels_tos    : [35.0, 35.0], // Temperatura odlaczenia kanalu z powodu przegrzania  
+            channels_tos    : [55.0, 55.0], // Temperatura odlaczenia kanalu z powodu przegrzania  
             dacs_value      : [0.0, 0.0],
             telemetry_period: 2,
         }
@@ -147,7 +147,7 @@ impl Variants for SilpaDefault{
 
 impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 {
-    fn init(&mut self, ecp5: &mut ECP5) -> bool {
+    fn init(&mut self) -> bool {
         // TODO IO and switch control
 
         // Piny, bity do write_output, read_output
@@ -155,67 +155,76 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         //  5 - input, przerwanie z kanalu drugiego
         //  6 - output, resetowanie kanalu pierwszego
         //  7 - output, resetowanie kanalu pierwszego
+        let x = stm32h7xx_hal::stm32::I2C4::ptr();
+        while(unsafe { x.read().isr.read().busy().bit() == true}){
+            log::info!("I2C Busy");
+        };
 
-        ecp5.write_oe(1, &mut [0, 192]);
-        ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]);
+        self.bus.lock(|bus| {
+            log::info!("Bus locked in Init()");
+            bus.ecp5.write_oe(1, &mut [0, 192]);
+        });
 
-        ecp5.write_interrupts_mask(1, &mut [0, 48]);
+        // ecp5.write_oe(1, &mut [0, 192]);
+        // ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]);
 
-        Max1329::setup_ecp5_spi_master(1, ecp5, 0);
-        Max1329::reset_device(1, ecp5);
-        Max1329::set_clock_control_register(1, ecp5, 0b0100_0011);
-        Max1329::set_cpvm_control_register(1, ecp5, 0b0100_1001);
-        Max1329::set_adc_control_register(1, ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, max1329::adc::RefConf::Int2_5);
-        Max1329::set_dac_control(1,  ecp5,
-                                max1329::dac::PowerDownConf::InOut,
-                                max1329::dac::PowerDownConf::InOut,
-                                max1329::dac::OpAmp::Disable,
-                                max1329::dac::RefConf::Int2_5);
-        Max1329::set_daca_value(1, ecp5, 0b0000_1000_1111_0101); // 1.4 V na wyjsciu DAC, -2 dBm na wejsciu detektora,
-        let mut data = Max1329::read_daca_value(1, ecp5);
-        assert_eq!(0b0000_1000_1111_0101, data, "DACA correct Value");
+        // ecp5.write_interrupts_mask(1, &mut [0, 48]);
 
-        Max1329::set_dacb_value(1, ecp5, 0b0000_0010_1111_0101); 
-        data = Max1329::read_dacb_value(1, ecp5);
-        assert_eq!(0b0000_0010_1111_0101, data, "DACB correct Value");
+        // Max1329::setup_ecp5_spi_master(1, ecp5, 0);
+        // Max1329::reset_device(1, ecp5);
+        // Max1329::set_clock_control_register(1, ecp5, 0b0100_0011);
+        // Max1329::set_cpvm_control_register(1, ecp5, 0b0100_1001);
+        // Max1329::set_adc_control_register(1, ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, max1329::adc::RefConf::Int2_5);
+        // Max1329::set_dac_control(1,  ecp5,
+        //                         max1329::dac::PowerDownConf::InOut,
+        //                         max1329::dac::PowerDownConf::InOut,
+        //                         max1329::dac::OpAmp::Disable,
+        //                         max1329::dac::RefConf::Int2_5);
+        // Max1329::set_daca_value(1, ecp5, 0x0FFF); // 1.4 V na wyjsciu DAC, -2 dBm na wejsciu detektora,
+        // let mut data = Max1329::read_daca_value(1, ecp5);
+        // assert_eq!(0x0FFF, data, "DACA incorrect Value");
 
-        Max1329::set_dpio_control_register(1, ecp5, 0xFFFF);
-        Max1329::set_dpio_setup_register(1,  ecp5, 0x03);
-        Max1329::set_interrupt_mask_register(1, ecp5, !(max1329::ADC | max1329::GTA | max1329::LTA));   
+        // Max1329::set_dacb_value(1, ecp5, 0x0FFF); 
+        // data = Max1329::read_dacb_value(1, ecp5);
+        // assert_eq!(0x0FFF, data, "DACB incorrect Value");
+
+        // Max1329::set_dpio_control_register(1, ecp5, 0xFFFF);
+        // Max1329::set_dpio_setup_register(1,  ecp5, 0x00);
+        // Max1329::set_interrupt_mask_register(1, ecp5, !(max1329::ADC | max1329::GTA | max1329::LTA));   
         
-        ecp5.write_outputs(1, &mut [0, 128]);
-        ecp5.write_outputs(1, &mut [0, 0]);
+        // ecp5.write_outputs(1, &mut [0, 128]);
+        // ecp5.write_outputs(1, &mut [0, 0]);
 
 
-        log::info!("Testy LM75 I2C w Init()");
-        self.toggle_servmod(0);
+        // log::info!("Testy LM75 I2C w Init()");
+        // self.toggle_servmod(0);
 
-        hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_000, self.settings.channels_tos[0]);
-        let mut tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, 0b1001_000);
-        log::info!("TOS CH1: {}", tos);
-        // assert_eq!(self.settings.channels_tos[0], tos, "TOS check CH1");
+        // hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_000, self.settings.channels_tos[0]);
+        // let mut tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, 0b1001_000);
+        // log::info!("TOS CH1: {}", tos);
+        // // assert_eq!(self.settings.channels_tos[0], tos, "TOS check CH1");
 
-        hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_001, self.settings.channels_tos[1]);
-        tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, 0b1001_001);
-        log::info!("TOS CH2: {}", tos);
-        // assert_eq!(self.settings.channels_tos[0], tos, "TOS check CH2");
+        // hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_001, self.settings.channels_tos[1]);
+        // tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, 0b1001_001);
+        // log::info!("TOS CH2: {}", tos);
+        // // assert_eq!(self.settings.channels_tos[0], tos, "TOS check CH2");
         
-        hardware::lm75a::set_thyst(&mut self.backplane.i2c, 0b1001_000, self.settings.channels_thyst[0]);
-        let mut thyst = hardware::lm75a::read_thyst(&mut self.backplane.i2c, 0b1001_000);
-        log::info!("THYST CH1: {}", thyst);
-        // assert_eq!(self.settings.channels_tos[0], thyst, "THYST check CH1");
+        // hardware::lm75a::set_thyst(&mut self.backplane.i2c, 0b1001_000, self.settings.channels_thyst[0]);
+        // let mut thyst = hardware::lm75a::read_thyst(&mut self.backplane.i2c, 0b1001_000);
+        // log::info!("THYST CH1: {}", thyst);
+        // // assert_eq!(self.settings.channels_tos[0], thyst, "THYST check CH1");
 
-        hardware::lm75a::set_thyst(&mut self.backplane.i2c, 0b1001_001, self.settings.channels_thyst[1]);
-        thyst = hardware::lm75a::read_thyst(&mut self.backplane.i2c, 0b1001_001);
-        log::info!("THYST CH2 {}", thyst);
-        // assert_eq!(self.settings.channels_tos[0], thyst, "THYST check CH2");    
+        // hardware::lm75a::set_thyst(&mut self.backplane.i2c, 0b1001_001, self.settings.channels_thyst[1]);
+        // thyst = hardware::lm75a::read_thyst(&mut self.backplane.i2c, 0b1001_001);
+        // log::info!("THYST CH2 {}", thyst);
+        // // assert_eq!(self.settings.channels_tos[0], thyst, "THYST check CH2");    
         
-        self.detector = read_detector_coefficients(&mut self.backplane.i2c);
-        self.toggle_servmod(1);
+        // self.detector = read_detector_coefficients(&mut self.backplane.i2c);
+        // self.toggle_servmod(1);
         true
     }
 
-    fn settings_update(&mut self, ecp5: &mut ECP5, new_settings: Settings) -> () {
+    fn settings_update(&mut self, new_settings: Settings) -> () {
         // Update MAX1329 only if settings changed
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
             400000000,
@@ -225,34 +234,41 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         // unsafe { x.read().cr1.write(|w| w.pe().disabled()) };
         // delay.delay_ms(2 as u32);
         // unsafe { x.read().cr1.write(|w| w.pe().enabled()) };
-        let x = stm32h7xx_hal::stm32::I2C4::ptr();
-        while(unsafe { x.read().isr.read().busy().bit() == true}){
-            log::info!("I2C Busy");
-        };
+        // let x = stm32h7xx_hal::stm32::I2C4::ptr();
+        // while(unsafe { x.read().isr.read().busy().bit() == true}){
+        //     log::info!("I2C Busy");
+        // };
     
 
-        if self.settings.adc_gt_threshold != new_settings.adc_gt_threshold {
-            Max1329::set_adc_gt_alarm_register(1, ecp5, adc::AlarmMode::NonConsecutive,
-                                                                1,
-                                                                new_settings.adc_gt_threshold);
-        }
+        // if self.settings.adc_gt_threshold != new_settings.adc_gt_threshold {
+        //     Max1329::set_adc_gt_alarm_register(1, ecp5, adc::AlarmMode::NonConsecutive,
+        //                                                         1,
+        //                                                         new_settings.adc_gt_threshold);
+        // }
 
-        if self.settings.adc_lt_threshold != new_settings.adc_lt_threshold {
-            Max1329::set_adc_lt_alarm_register(1, ecp5, adc::AlarmMode::NonConsecutive,
-                                                                1,
-                                                                new_settings.adc_lt_threshold);
-        }
+        // if self.settings.adc_lt_threshold != new_settings.adc_lt_threshold {
+        //     Max1329::set_adc_lt_alarm_register(1, ecp5, adc::AlarmMode::NonConsecutive,
+        //                                                         1,
+        //                                                         new_settings.adc_lt_threshold);
+        // }
 
-        if self.settings.dacs_enable != new_settings.dacs_enable {
-            Max1329::set_dac_control(1, ecp5, match new_settings.dacs_enable[0] { true => dac::PowerDownConf::InToOut,
-                                                                                          false => dac::PowerDownConf::PowerDown,},
-                                                      match new_settings.dacs_enable[1] { true => dac::PowerDownConf::InToOut,
-                                                                                          false => dac::PowerDownConf::PowerDown,},
-                                                      dac::OpAmp::Disable,
-                                                      dac::RefConf::Ext1_0,);
-            log::info!("DACS Enable: {} {}", new_settings.dacs_enable[0], new_settings.dacs_enable[1]);
-        }
+        // if self.settings.dacs_enable != new_settings.dacs_enable {
+        //     Max1329::set_dac_control(1, ecp5, match new_settings.dacs_enable[0] { true => dac::PowerDownConf::InToOut,
+        //                                                                                   false => dac::PowerDownConf::PowerDown,},
+        //                                               match new_settings.dacs_enable[1] { true => dac::PowerDownConf::InToOut,
+        //                                                                                   false => dac::PowerDownConf::PowerDown,},
+        //                                               dac::OpAmp::Disable,
+        //                                               dac::RefConf::Ext1_0,);
+        //     log::info!("DACS Enable: {} {}", new_settings.dacs_enable[0], new_settings.dacs_enable[1]);
+        // }
 
+        // Max1329::set_daca_value(1, ecp5, 0x0FFF); // 1.4 V na wyjsciu DAC, -2 dBm na wejsciu detektora,
+        // let mut data = Max1329::read_daca_value(1, ecp5);
+        // assert_eq!(0x0FFF, data, "DACA incorrect Value");
+
+        // Max1329::set_dacb_value(1, ecp5, 0x0FFF); 
+        // data = Max1329::read_dacb_value(1, ecp5);
+        // assert_eq!(0x0FFF, data, "DACB incorrect Value");
         // for n in 0..2 {
         //     if (self.settings.dacs_value[n] != new_settings.dacs_value[n]) & self.settings.dacs_enable[n] == true {
         //         self.calculate_dac_value(new_settings.dacs_value[n], (n + 1) as u8, ecp5);
@@ -277,21 +293,21 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         // }
 
         if self.settings.channels_tos[0] != new_settings.channels_tos[0] {
-            self.toggle_servmod(0);
+            // self.toggle_servmod(0);
             // self.backplane.i2c.master_write(0b1001_000, 1, Stop::Automatic);
             // self.backplane.i2c.master_stop();
 
-            hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_000, new_settings.channels_tos[0]);
-            let tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[0]);
-            log::info!("TOS {}: {}", 0, tos);
-            self.toggle_servmod(1);
+            // hardware::lm75a::set_tos(&mut self.backplane.i2c, 0b1001_000, new_settings.channels_tos[0]);
+            // let tos = hardware::lm75a::read_tos(&mut self.backplane.i2c, hardware::lm75a::I2C_ADDR[0]);
+            // log::info!("TOS {}: {}", 0, tos);
+            // self.toggle_servmod(1);
             log::info!("Zmieniono servmod");
         }
 
 
         if self.settings.channels_locked != new_settings.channels_locked {
             let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
-            ecp5.read_inputs(1, &mut ecp5_inputs);
+            // ecp5.read_inputs(1, &mut ecp5_inputs);
 
             if self.settings.channels_locked[0] != new_settings.channels_locked[0] {
                 log::info!("Odblokowywanie CH1");
@@ -300,6 +316,9 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             if self.settings.channels_locked[1] != new_settings.channels_locked[1] {
                 log::info!("Odblokowywanie CH2");
             }
+
+            // ecp5.write_outputs(1, &mut [0, 128]);
+            // ecp5.write_outputs(1, &mut [0, 0]);
             // if ecp5_inputs[1] & (1 << ECP5_INPUTS::CHANNEL1) == 0{
             //     self.activate_channel(ecp5, 1);
             // }
@@ -308,11 +327,11 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             //     self.activate_channel(ecp5, 2);
             // }         
         }
-        self.toggle_servmod(1);
+        // self.toggle_servmod(1);
         self.settings = new_settings;
     }
 
-    fn telemetry(&mut self, ecp5: &mut ECP5) -> (Telemetry, u16) {
+    fn telemetry(&mut self) -> (Telemetry, u16) {
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
             400000000,
         ));
@@ -323,7 +342,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             log::info!("I2C Busy");
         };
 
-        self.toggle_servmod(0);
+        // self.toggle_servmod(0);
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
             400000000,
         ));
@@ -343,80 +362,82 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         // unsafe { x.read().cr1.write(|w| w.pe().enabled()) };
         // self.backplane.i2c.master_stop();
 
-        match hardware::lm75a::read_temp(&mut self.backplane.i2c, 0b1001_000){
-            Ok(temp) =>     {log::info!("Temp 1: {}", temp);
-                                self.telemetry.set_ch1_temperature(temp);
-                                },
-            Err(e) => panic!("{:?}", e),
-        };
-        match hardware::lm75a::read_temp(&mut self.backplane.i2c, 0b1001_001){
-            Ok(temp) =>     {log::info!("Temp 1: {}", temp);
-                                self.telemetry.set_ch2_temperature(temp);
-        },
-            Err(e) => panic!("{:?}", e),
-        };
-        self.toggle_servmod(1);
-        Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-        while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
-        }
+        // match hardware::lm75a::read_temp(&mut self.backplane.i2c, 0b1001_000){
+        //     Ok(temp) =>     {
+        //         log::info!("Temp 1: {}", temp);
+        //         self.telemetry.set_ch1_temperature(temp);
+        //                         },
+        //     Err(e) => panic!("{:?}", e),
+        // };
+        // match hardware::lm75a::read_temp(&mut self.backplane.i2c, 0b1001_001){
+        //     Ok(temp) =>     {
+        //         log::info!("Temp 2: {}", temp);
+        //         self.telemetry.set_ch2_temperature(temp);
+        //     },
+        //     Err(e) => panic!("{:?}", e),
+        //     };
+        // self.toggle_servmod(1);
+        // Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
+        // }
         
-        let adc_val = Max1329::read_adc_data_register(1, ecp5);
+        // let adc_val = Max1329::read_adc_data_register(1, ecp5);
         // log::info!("Wartosc z ADC1: {}", adc_val.0);
-        // log::info!("Moc wejsciowa na CH1: {}", vrms_to_dbm_converter((adc_val.0 as f32) * 2.5 / 4095.0 /1.5));
+        // // log::info!("Moc wejsciowa na CH1: {}", vrms_to_dbm_converter((adc_val.0 as f32) * 2.5 / 4095.0 /1.5));
 
-        Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::OUTA_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-        while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
-        }
+        // Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::OUTA_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
+        // }
         
-        let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        // log::info!("Wartosc z DAC1: {}", adc_val.0);
+        // let adc_val = Max1329::read_adc_data_register(1, ecp5);
+        // // log::info!("Wartosc z DAC1: {}", adc_val.0);
 
 
-        self.telemetry.set_ch1_output_power_field(adc_val);
+        // self.telemetry.set_ch1_output_power_field(adc_val);
 
-        Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-        while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
-        } 
+        // Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
+        // } 
 
-        let adc_val = Max1329::read_adc_data_register(1, ecp5);
+        // let adc_val = Max1329::read_adc_data_register(1, ecp5);
         // log::info!("Wartosc z ADC2: {}", adc_val.0);
-        // log::info!("Moc wejsciowa na CH1: {}", vrms_to_dbm_converter((adc_val.0 as f32) * 2.5 / 4095.0 /1.5));
+        // // log::info!("Moc wejsciowa na CH1: {}", vrms_to_dbm_converter((adc_val.0 as f32) * 2.5 / 4095.0 /1.5));
 
-        Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::OUTB_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-        while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
-        }
+        // Max1329::set_adc_setup_direct(1, ecp5, max1329::adc::Mux::OUTB_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+        // while (Max1329::read_status_register(1, ecp5) | (1 << 20)) == 0 {
+        // }
         
-        let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        // log::info!("Wartosc z DAC2: {}", adc_val.0);
+        // let adc_val = Max1329::read_adc_data_register(1, ecp5);
+        // // log::info!("Wartosc z DAC2: {}", adc_val.0);
 
-        let adc_val = Max1329::read_adc_data_register(1, ecp5);
-        self.telemetry.set_ch2_output_power_field(adc_val);
+        // let adc_val = Max1329::read_adc_data_register(1, ecp5);
+        // self.telemetry.set_ch2_output_power_field(adc_val);
         (self.telemetry.finalize(),
          self.settings.telemetry_period)
     }
 
-    fn check_interrupt(&mut self, ecp5: &mut ECP5) {
+    fn check_interrupt(&mut self) {
 
         // ODczyt inputow z FPGA //
-        ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]);
-        let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
-        ecp5.read_inputs(1, &mut ecp5_inputs);
-        log::info!("Wartości na wejściach ECP5: {} {}", ecp5_inputs[0], ecp5_inputs[1]);
+        // ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]);
+        // let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
+        // // ecp5.read_inputs(1, &mut ecp5_inputs);
+        // log::info!("Wartości na wejściach ECP5: {} {}", ecp5_inputs[0], ecp5_inputs[1]);
 
-        // Opis lini LVDS:
-        // - 4 - input, Kanal 1, '1' - input odciety, '0' - sygnal jest wzmacniany
-        // - 5 - input, Kanal 2, '1' - input odciety, '0' - sygnal jest wzmacniany
-        // - 6 - output - Kanal 1, '1' ustawienie na '1' resetuje uklad i dziala
-        // - 7 - output - Kanal 2, '1' ustawienie na '1' resetuje uklad i dziala
-        if (ecp5_inputs[1] & ECP5_Interrupts::CHANNEL1_INACTIVE == ECP5_Interrupts::CHANNEL1_INACTIVE) {
-            self.settings.channels_locked[0] = true;
-            log::info!("Zablokowano kanał 1");
-        }
+        // // Opis lini LVDS:
+        // // - 4 - input, Kanal 1, '1' - input odciety, '0' - sygnal jest wzmacniany
+        // // - 5 - input, Kanal 2, '1' - input odciety, '0' - sygnal jest wzmacniany
+        // // - 6 - output - Kanal 1, '1' ustawienie na '1' resetuje uklad i dziala
+        // // - 7 - output - Kanal 2, '1' ustawienie na '1' resetuje uklad i dziala
+        // if (ecp5_inputs[1] & ECP5_Interrupts::CHANNEL1_INACTIVE == ECP5_Interrupts::CHANNEL1_INACTIVE) {
+        //     self.settings.channels_locked[0] = true;
+        //     log::info!("Zablokowano kanał 1");
+        // }
 
-        if (ecp5_inputs[1] & ECP5_Interrupts::CHANNEL2_INACTIVE == ECP5_Interrupts::CHANNEL2_INACTIVE) {
-            self.settings.channels_locked[1] = true;
-            log::info!("Zablokowano kanał 2");
-        }
+        // if (ecp5_inputs[1] & ECP5_Interrupts::CHANNEL2_INACTIVE == ECP5_Interrupts::CHANNEL2_INACTIVE) {
+        //     self.settings.channels_locked[1] = true;
+        //     log::info!("Zablokowano kanał 2");
+        // }
 
     }
 }
@@ -430,33 +451,33 @@ impl SiLPA<SilpaDefault>
     // fn adc_lt_alarm(&self, _ecp5: &mut ECP5){
 
     // }
-    pub fn toggle_servmod(&mut self, state : u8){
-        if state == 0 {
-            match self.slot{
-                1 => self.backplane.servmod.0.set_low().unwrap(), 
-                2 => self.backplane.servmod.1.set_low().unwrap(),
-                3 => self.backplane.servmod.2.set_low().unwrap(),
-                4 => self.backplane.servmod.3.set_low().unwrap(),
-                5 => self.backplane.servmod.4.set_low().unwrap(),
-                6 => self.backplane.servmod.5.set_low().unwrap(),
-                7 => self.backplane.servmod.6.set_low().unwrap(),
-                8 => self.backplane.servmod.7.set_low().unwrap(),
-                _ => log::info!("Incorrect Slot Number")
-            };
-        } else if state == 1 {
-            match self.slot{
-                1 => self.backplane.servmod.0.set_high().unwrap(), 
-                2 => self.backplane.servmod.1.set_high().unwrap(),
-                3 => self.backplane.servmod.2.set_high().unwrap(),
-                4 => self.backplane.servmod.3.set_high().unwrap(),
-                5 => self.backplane.servmod.4.set_high().unwrap(),
-                6 => self.backplane.servmod.5.set_high().unwrap(),
-                7 => self.backplane.servmod.6.set_high().unwrap(),
-                8 => self.backplane.servmod.7.set_high().unwrap(),
-                _ => log::info!("Incorrect Slot Number")
-            };  
-        }
-    }
+    // pub fn toggle_servmod(SlotsBus: bus, state : u8){
+    //     if state == 0 {
+    //         match self.slot{
+    //             1 => 
+    //             2 => self.backplane.servmod.1.set_low().unwrap(),
+    //             3 => self.backplane.servmod.2.set_low().unwrap(),
+    //             4 => self.backplane.servmod.3.set_low().unwrap(),
+    //             5 => self.backplane.servmod.4.set_low().unwrap(),
+    //             6 => self.backplane.servmod.5.set_low().unwrap(),
+    //             7 => self.backplane.servmod.6.set_low().unwrap(),
+    //             8 => self.backplane.servmod.7.set_low().unwrap(),
+    //             _ => log::info!("Incorrect Slot Number")
+    //         };
+    //     } else if state == 1 {
+    //         match self.slot{
+    //             1 => self.backplane.servmod.0.set_high().unwrap(), 
+    //             2 => self.backplane.servmod.1.set_high().unwrap(),
+    //             3 => self.backplane.servmod.2.set_high().unwrap(),
+    //             4 => self.backplane.servmod.3.set_high().unwrap(),
+    //             5 => self.backplane.servmod.4.set_high().unwrap(),
+    //             6 => self.backplane.servmod.5.set_high().unwrap(),
+    //             7 => self.backplane.servmod.6.set_high().unwrap(),
+    //             8 => self.backplane.servmod.7.set_high().unwrap(),
+    //             _ => log::info!("Incorrect Slot Number")
+    //         };  
+    //     }
+    // }
 
     // pub fn check_temperature(&mut self, channel : u8) -> f32   
     // { 
@@ -539,7 +560,7 @@ impl SiLPA<SilpaDefault>
 }
 
 pub fn vrms_to_dbm_converter(vrms : f32) -> f32{
-    let dbm = 30.0 +  20.0 * f32::log10(vrms/(50.0).sqrt());
+    let dbm = 30.0 +  20.0 * f32::log10(vrms/((50.0).sqrt()));
     return dbm
 }
 
