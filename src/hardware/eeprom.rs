@@ -107,6 +107,7 @@ where
     Ok(())
 }
 
+#[cfg(not(feature = "ext_jk_flip_flop"))]
 pub fn read_detector_coefficients<T>(i2c: &mut T) -> SiLPADetector
 where
     T: WriteRead,

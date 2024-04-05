@@ -61,6 +61,7 @@ version = "0.11.0"
 default = [ ]
 nightly = ["cortex-m/inline-asm"]
 #ext_ref_burned = [ ]
+ext_jk_flip_flop = [ ]
 
 [profile.dev]
 codegen-units = 1

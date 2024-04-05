@@ -200,6 +200,8 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             hardware::lm75a::set_thyst(&mut bus.cpcis_i2c, 0b1001_001, self.settings.channels_thyst[1]);
 
             self.detector = read_detector_coefficients(&mut bus.cpcis_i2c);
+
+
             toggle_servmod(&mut bus.servmod, 1, self.slot);
         });
 
