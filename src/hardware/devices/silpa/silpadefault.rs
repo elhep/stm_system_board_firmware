@@ -30,8 +30,8 @@ pub mod AMPLIFIER_PARAMETERS{
     pub const DIVIDER_RATIO : f32 = 0.0; //Dzielnik 82 i 1k     
 }
 pub mod ECP5_OUTPUTS{
-    pub const TOGGLE_CH1 : u8 = 0x01;
-    pub const TOGGLE_CH2 : u8 = 0x02;
+    pub const TOGGLE_CH1 : u8 = 0x40;
+    pub const TOGGLE_CH2 : u8 = 0x80;
 }
 #[derive(Copy, Clone)]
 pub struct TelemetryBuffer{
@@ -189,6 +189,9 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             Max1329::set_dpio_setup_register(1,  &mut bus.ecp5, 0x00);
             Max1329::set_interrupt_mask_register(1, &mut bus.ecp5, !(max1329::ADC | max1329::GTA | max1329::LTA));
 
+            bus.ecp5.write_outputs(1, &mut [0, 192]); // Odblookowywanie kanalow
+            bus.ecp5.write_outputs(1, &mut [0, 0]);
+    
             toggle_servmod(&mut bus.servmod, 0, self.slot);
             hardware::lm75a::set_tos(&mut bus.cpcis_i2c, 0b1001_000, self.settings.channels_tos[0]); // TOS CH1
             hardware::lm75a::set_tos(&mut bus.cpcis_i2c, 0b1001_001, self.settings.channels_tos[1]); // TOS CH2
@@ -242,6 +245,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             // TODO do przetestowania odblokowywanie kanalow
                 if (new_settings.channels_locked[n] == false) && (self.settings.channels_locked[n] == true) {
                     log::info!("Odblokowywanie {}", n);
+                    activate_channel(1, &mut bus.ecp5, n as u8);
                 }
             }
 
@@ -431,18 +435,14 @@ pub fn activate_channel(slot : u8, ecp5 : &mut ECP5, channel : u8){
             // Dodac odczyt outputow i zrobic or z tym co jest tutaj
             let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
             ecp5.read_inputs(slot, &mut ecp5_inputs);
-            ecp5.write_outputs(slot, &[ecp5_inputs[0] | ECP5_OUTPUTS::TOGGLE_CH1]);
-            // Delay
-            ecp5.read_inputs(slot, &mut ecp5_inputs);
-            ecp5.write_outputs(slot, &[ecp5_inputs[0] | 0x00]);
+            ecp5.write_outputs(slot, &[ecp5_inputs[0], ecp5_inputs[1] | ECP5_OUTPUTS::TOGGLE_CH1]);
+            ecp5.write_outputs(slot, &[ecp5_inputs[0], ecp5_inputs[1] ^ ECP5_OUTPUTS::TOGGLE_CH1]);
         },
         2 => {
             let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
             ecp5.read_inputs(slot, &mut ecp5_inputs);
-            ecp5.write_outputs(slot, &[ecp5_inputs[0] | ECP5_OUTPUTS::TOGGLE_CH2]);
-            // Delay
-            ecp5.read_inputs(slot, &mut ecp5_inputs);
-            ecp5.write_outputs(slot, &[ecp5_inputs[0] | 0x00]);
+            ecp5.write_outputs(slot, &[ecp5_inputs[0], ecp5_inputs[1] | ECP5_OUTPUTS::TOGGLE_CH2]);
+            ecp5.write_outputs(slot, &[ecp5_inputs[0], ecp5_inputs[1] ^ ECP5_OUTPUTS::TOGGLE_CH2]);
         }
         _ => log::info!("Incorrect channel number"),
     }
