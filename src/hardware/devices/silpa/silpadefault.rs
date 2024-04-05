@@ -311,26 +311,24 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 
     fn check_interrupt(&mut self) {
 
-        // ODczyt inputow z FPGA //
-        // ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]);
-        // let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
-        // // ecp5.read_inputs(1, &mut ecp5_inputs);
-        // log::info!("Wartości na wejściach ECP5: {} {}", ecp5_inputs[0], ecp5_inputs[1]);
+        self.bus.lock(| bus| {
+            bus.ecp5.write_clear_interrupts(1,  &mut [0xffu8; 2]);
+            let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
+            bus.ecp5.read_inputs(1, &mut ecp5_inputs);
+            // - 4 - input, Kanal 1, '1' - input odciety, '0' - sygnal jest wzmacniany
+            // - 5 - input, Kanal 2, '1' - input odciety, '0' - sygnal jest wzmacniany
+            // - 6 - output - Kanal 1, '1' ustawienie na '1' resetuje uklad i wzmacniacz dziala
+            // - 7 - output - Kanal 2, '1' ustawienie na '1' resetuje uklad i wzmacniacz dziala
+            if (ecp5_inputs[1] & ECP5_Interrupts::CHANNEL1_INACTIVE == ECP5_Interrupts::CHANNEL1_INACTIVE) {
+                self.settings.channels_locked[0] = true;
+                log::info!("Zablokowano kanał 1");
+            }
 
-        // // Opis lini LVDS:
-        // // - 4 - input, Kanal 1, '1' - input odciety, '0' - sygnal jest wzmacniany
-        // // - 5 - input, Kanal 2, '1' - input odciety, '0' - sygnal jest wzmacniany
-        // // - 6 - output - Kanal 1, '1' ustawienie na '1' resetuje uklad i dziala
-        // // - 7 - output - Kanal 2, '1' ustawienie na '1' resetuje uklad i dziala
-        // if (ecp5_inputs[1] & ECP5_Interrupts::CHANNEL1_INACTIVE == ECP5_Interrupts::CHANNEL1_INACTIVE) {
-        //     self.settings.channels_locked[0] = true;
-        //     log::info!("Zablokowano kanał 1");
-        // }
-
-        // if (ecp5_inputs[1] & ECP5_Interrupts::CHANNEL2_INACTIVE == ECP5_Interrupts::CHANNEL2_INACTIVE) {
-        //     self.settings.channels_locked[1] = true;
-        //     log::info!("Zablokowano kanał 2");
-        // }
+            if (ecp5_inputs[1] & ECP5_Interrupts::CHANNEL2_INACTIVE == ECP5_Interrupts::CHANNEL2_INACTIVE) {
+                self.settings.channels_locked[1] = true;
+                log::info!("Zablokowano kanał 2");
+            }
+        });
 
     }
 }
