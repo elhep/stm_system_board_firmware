@@ -8,7 +8,7 @@ use smoltcp_nal::smoltcp::wire::ArpHardware;
 use stm32h7xx_hal::i2c::Stop;
 use stm32h7xx_hal::pac::i2c1::cr1::PE_A;
 use stm32h7xx_hal::pac::i2c1::CR1;
-use crate::hardware::eeprom::{read_detector_coefficients, SiLPADetector};
+use crate::hardware::eeprom::{check_device_name, read_detector_coefficients, set_device_name, SiLPADetector};
 use crate::hardware::setup::{SlotsBus};
 use crate::hardware::{ServMod, self};
 use crate::hardware::devices::max1329::adc::AdcCode;
@@ -161,6 +161,11 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         };
 
         self.bus.lock(| bus| {
+            // Jednorazowo ustawic board name w EEPROMIE
+            toggle_servmod(&mut bus.servmod, 0, self.slot);
+            set_device_name(&mut bus.cpcis_i2c);
+            check_device_name(&mut bus.cpcis_i2c, "SiLPA".as_bytes());
+            toggle_servmod(&mut bus.servmod, 1, self.slot);
             log::info!("Bus locked in Init()");
             bus.ecp5.write_oe(1, &mut [0, 192]);
             bus.ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]);
@@ -214,6 +219,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                                                       dac::OpAmp::Disable,
                                                       dac::RefConf::Ext1_0,);
             log::info!("DACS Enable: {} {}", new_settings.dacs_enable[0], new_settings.dacs_enable[1]);
+            log::info!("Chanels locked: {} {}", new_settings.channels_locked[0], new_settings.channels_locked[1]);
 
             for n in 0..2 {
                 if (self.settings.dacs_value[n] != new_settings.dacs_value[n]) & self.settings.dacs_enable[n] == true {

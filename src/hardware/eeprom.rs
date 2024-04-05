@@ -17,7 +17,7 @@ const MAC_POINTER: u8 = 0xFA;
 const EEPROM_CHANNEL_1_COEFFICIENTS: u8 = 0x40; // Poczatek danych pierwszego kanalu
 const EEPROM_CHANNEL_2_COEFFICIENTS: u8 = 0x48; // Poczatek danych drugiego kanalu
 const EEPROM_DATA_LENGTH: u8 = 0x08; // Po osiem bajtow danych na kalibracje dla kazdego kanalu (4 bajty slope, 4 bajty offset)
-
+const EEPROM_NAME : u8 = 0x06;
 pub struct SiLPADetector{
     pub channel_1_slope: f32,
     pub channel_1_intercept: f32,
@@ -216,5 +216,37 @@ where
         // // log::info!("Przykładowe wartości parametrów do testów: {} {} {} {}",    data[0].to_bits() as u32, data[1].to_bits() as u32, data[2].to_bits() as u32, data[3].to_bits() as u32);
         // log::info!("Odczytane wartości z eepromu:              {} {} {} {}",    detector_coefficients[0].to_bits() as u32, detector_coefficients[1].to_bits() as u32, 
         //                                                                         detector_coefficients[2].to_bits() as u32, detector_coefficients[3].to_bits() as u32);
+
+}
+
+pub fn set_device_name<T>(i2c: &mut T) -> ()
+where 
+    T: Write,
+{
+    let silpa_name = "SiLPA".as_bytes();
+
+    let mut i2c_data : [u8; 6] = [0; 6];
+
+    i2c_data[0] = EEPROM_NAME;
+    for n in 0..5 {
+        i2c_data[n + 1] = silpa_name[n];
+    }
+
+    let _  =  i2c.write(I2C_ADDR, &mut i2c_data);
+
+}
+
+pub fn check_device_name<T>(i2c: &mut T, name : &[u8]) -> ()
+where 
+    T: WriteRead,
+{
+    const name_len: usize = 5;
+    let mut name_buff : [u8; name_len] = [0; name_len];
+
+    let _  =  i2c.write_read(I2C_ADDR, &[EEPROM_NAME], &mut name_buff);
+
+    if name != name_buff {
+        panic!("Incorrect device name");
+    }
 
 }
