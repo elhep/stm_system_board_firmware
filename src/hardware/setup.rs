@@ -113,6 +113,7 @@ pub struct BoardDevices {
     pub therm_i2c: hal::i2c::I2c<hal::stm32::I2C1>,
     pub cpcis_i2c: hal::i2c::I2c<hal::stm32::I2C4>,
     pub servmod: ServMod,
+    pub mlvds_dir_spi: hal::spi::Spi<hal::device::SPI3, hal::spi::Enabled, u16>,
 }
 
 pub struct MonBus {
@@ -317,11 +318,11 @@ pub fn setup(
         //let di11 = gpiog.pg12.into_floating_input();
         let di20 = gpioc.pc2.into_pull_down_input();
         //let di21 = gpioc.pc3.into_floating_input();
-        let di30 = gpiob.pb4.into_pull_down_input();
+        //let di30 = gpiob.pb4.into_pull_down_input();
         //let di31 = gpiod.pd3.into_floating_input();
-        let di40 = gpiob.pb2.into_pull_down_input();
+        //let di40 = gpiob.pb2.into_pull_down_input();  #used as SPI to MLVD dir
         //let di41 = gpiob.pb4.into_floating_input();
-        let di50 = gpioc.pc10.into_pull_down_input();
+        //let di50 = gpioc.pc10.into_pull_down_input();
         //let di51 = gpioa.pa4.into_floating_input();
         let di60 = gpioe.pe2.into_pull_down_input();
         //let di61 = gpioe.pe4.into_floating_input();
@@ -333,7 +334,7 @@ pub fn setup(
 //        di01.enable_interrupt(&mut exti);
 
         //(
-            (di00, di10, di20, di30, di40, di50, di60, di70)//,
+            (di00, di10, di20, di60, di70)//, di30 di40 di50 deleted as it is used as SPI3 to MLVDS dir TODO add new  lane
         //    (di01, di11, di21, di31, di41, di51, di61, di71)
         //)
     };
@@ -439,6 +440,32 @@ pub fn setup(
    ));
     log::info!("EUI48: {}", mac_addr);
 
+    let mlvds_dir_spi = {
+        let spi_pins = {
+                let clk = gpioc.pc10
+                    .into_alternate_af6();
+                let miso = gpiob.pb4
+                    .into_alternate_af6();
+                let mosi = gpiob.pb2
+                    .into_alternate_af7();
+                let cs = gpioa.pa4
+                    .into_alternate_af6();
+                (clk, miso, mosi, cs)
+        };
+
+        device.SPI3.spi(
+            spi_pins,
+            hal::spi::Config::new(hal::spi::MODE_0)
+                .hardware_cs(hal::spi::HardwareCS {
+                    mode: hal::spi::HardwareCSMode::EndlessTransaction,
+                    assertion_delay: 0.000001,
+                    polarity: hal::spi::Polarity::IdleHigh,
+                }),
+            1.mhz(),
+            ccdr.peripheral.SPI3,
+            &ccdr.clocks,
+         )
+    };
     let ecp5 = {
         let qspi_interface = {
             let qspi_pins = {   //STM SYS BOARD QSPI pinout
@@ -669,6 +696,7 @@ pub fn setup(
         therm_i2c,
         cpcis_i2c,
         servmod,
+        mlvds_dir_spi,
     };
 
     // info!("Version {} {}", build_info::PKG_VERSION, build_info::GIT_VERSION.unwrap());

@@ -100,11 +100,11 @@ impl ECP5 {
             0 => self.interface_ready.0.is_high().unwrap(),
             1 => self.interface_ready.1.is_high().unwrap(),
             2 => self.interface_ready.2.is_high().unwrap(),
-            3 => self.interface_ready.3.is_high().unwrap(),
-            4 => self.interface_ready.4.is_high().unwrap(),
-            5 => self.interface_ready.5.is_high().unwrap(),
-            6 => self.interface_ready.6.is_high().unwrap(),
-            7 => self.interface_ready.7.is_high().unwrap(),
+            //3 => self.interface_ready.3.is_high().unwrap(),
+            //4 => self.interface_ready.4.is_high().unwrap(),  //TODO uncomment with new pin
+            //5 => self.interface_ready.3.is_high().unwrap(),
+            6 => self.interface_ready.3.is_high().unwrap(),
+            7 => self.interface_ready.4.is_high().unwrap(),
             _ => panic!("Slot number >= 8")
         }
     }

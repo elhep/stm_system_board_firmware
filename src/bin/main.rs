@@ -33,7 +33,7 @@ use stm_sys_board::{
 };
 use stm32h7xx_hal::{gpio::ExtiPin,
                     exti::{Event, ExtiExt},
-                    device::EXTI,};
+                    device::EXTI, spi};
 use core::option::Option::{self, Some};
 use stm_sys_board::net::settings::{Settings, Device0Type, Device1Type, Device2Type,
                                              Device3Type, Device4Type, Device5Type,
@@ -111,6 +111,7 @@ mod app {
 
 
         let mut i2c = stm_sys_board.therm_i2c;
+        let mut spi = stm_sys_board.mlvds_dir_spi;
         let mut data : [u8; 2] = [0; 2];
         i2c.write_read(0b1001000 as u8, &[0], &mut data).unwrap();
         let temp : u16 = ( (data[0] as u16) << 4) | ((data[1] as u16) >> 4);

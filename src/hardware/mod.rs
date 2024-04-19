@@ -25,9 +25,9 @@ pub type ECP5InterfaceReady = (
     DigitalInput0Slot0,
     DigitalInput0Slot1,
     DigitalInput0Slot2,
-    DigitalInput0Slot3,
-    DigitalInput0Slot4,
-    DigitalInput0Slot5,
+    //DigitalInput0Slot3,#TODO uncomment with new pin
+    //DigitalInput0Slot4, #TODO uncomment with new pin
+    //DigitalInput0Slot5,
     DigitalInput0Slot6,
     DigitalInput0Slot7,
 );
