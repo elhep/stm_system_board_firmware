@@ -13,7 +13,9 @@ where
     pub settings: U::VariantSettings,
     pub telemetry: U::VariantTelemetryBuffer,
     pub bus: BusReference,
-    pub detector : SiLPADetector
+    pub slope : [u16; 2],
+    pub intercept : [u16; 2],
+    pub signal_absence : [u16; 2]
 }
 
 impl<U> SiLPA <U>
@@ -30,7 +32,9 @@ where
             settings: U::VariantSettings::default(),
             telemetry: U::VariantTelemetryBuffer::default(),
             bus: bus,
-            detector: SiLPADetector::new(0.0, 0.0, 0.0, 0.0)
+            slope: [0; 2],
+            intercept: [0; 2],
+            signal_absence: [700, 700]
         }
 
     }

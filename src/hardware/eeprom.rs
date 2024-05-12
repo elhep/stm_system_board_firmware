@@ -18,6 +18,9 @@ const EEPROM_CHANNEL_1_COEFFICIENTS: u8 = 0x40; // Poczatek danych pierwszego ka
 const EEPROM_CHANNEL_2_COEFFICIENTS: u8 = 0x48; // Poczatek danych drugiego kanalu
 const EEPROM_DATA_LENGTH: u8 = 0x08; // Po osiem bajtow danych na kalibracje dla kazdego kanalu (4 bajty slope, 4 bajty offset)
 const EEPROM_NAME : u8 = 0x06;
+
+const EEPROM_CH1_CALIBRATION : u8 = 0x40; // 1 pole na slope, 2 pola na intercept
+const EEPROM_CH2_CALIBRATION : u8 = 0x46; // 1 pole na slope, 2 pola na intercept
 pub struct SiLPADetector{
     pub channel_1_slope: f32,
     pub channel_1_intercept: f32,
@@ -174,51 +177,51 @@ where
     return detector
 }
 
-pub fn test_example_coefficients<T>(i2c: &mut T, address: u8, data : &mut [f32]) -> ()
-where 
-    T: WriteRead + Write,
-{
-    let mut array_1st_page : [u8; 9] = [0; 9];
-    let mut array_2nd_page : [u8; 9] = [0; 9];
+// pub fn test_example_coefficients<T>(i2c: &mut T, address: u8, data : &mut [f32]) -> ()
+// where 
+//     T: WriteRead + Write,
+// {
+//     let mut array_1st_page : [u8; 9] = [0; 9];
+//     let mut array_2nd_page : [u8; 9] = [0; 9];
 
-    let ch1_slope_u32 : u32 = data[0].to_bits();
-    let ch2_slope_u32 : u32 = data[2].to_bits();
-    let ch1_intercept_u32 : u32 = data[1].to_bits();
-    let ch2_intercept_u32 : u32 = data[3].to_bits();
-    log::info!("Dane po konwersji na u32: {} {} {} {}", ch1_slope_u32, ch2_slope_u32, ch1_intercept_u32, ch2_intercept_u32);
+//     let ch1_slope_u32 : u32 = data[0].to_bits();
+//     let ch2_slope_u32 : u32 = data[2].to_bits();
+//     let ch1_intercept_u32 : u32 = data[1].to_bits();
+//     let ch2_intercept_u32 : u32 = data[3].to_bits();
+//     log::info!("Dane po konwersji na u32: {} {} {} {}", ch1_slope_u32, ch2_slope_u32, ch1_intercept_u32, ch2_intercept_u32);
 
-    let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
-        400000000,
-    ));
-    for i in 0..7{
-        if i < 4 {
-            array_1st_page[i + 1] = (ch1_slope_u32 >>  (24 - 8*i)) as u8;
-            log::info!("wpisywane wartosci do tablicy: element :{} warotść :{:#010b}", i, array_1st_page[i + 1]);
-            array_2nd_page[i + 1] = (ch2_slope_u32 >>  (24 - 8*i)) as u8;
-        } else {
-            array_1st_page[i + 1] = (ch1_intercept_u32 >> (24 - 8*(i - 4))) as u8;
-            array_2nd_page[i + 1] = (ch2_intercept_u32 >> (24 - 8*(i - 4))) as u8;
-        }
-    }
+//     let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
+//         400000000,
+//     ));
+//     for i in 0..7{
+//         if i < 4 {
+//             array_1st_page[i + 1] = (ch1_slope_u32 >>  (24 - 8*i)) as u8;
+//             log::info!("wpisywane wartosci do tablicy: element :{} warotść :{:#010b}", i, array_1st_page[i + 1]);
+//             array_2nd_page[i + 1] = (ch2_slope_u32 >>  (24 - 8*i)) as u8;
+//         } else {
+//             array_1st_page[i + 1] = (ch1_intercept_u32 >> (24 - 8*(i - 4))) as u8;
+//             array_2nd_page[i + 1] = (ch2_intercept_u32 >> (24 - 8*(i - 4))) as u8;
+//         }
+//     }
 
-    array_1st_page[0] = EEPROM_CHANNEL_1_COEFFICIENTS;
-    array_2nd_page[0] = EEPROM_CHANNEL_2_COEFFICIENTS;
+//     array_1st_page[0] = EEPROM_CHANNEL_1_COEFFICIENTS;
+//     array_2nd_page[0] = EEPROM_CHANNEL_2_COEFFICIENTS;
 
-    // Wpisanie do pamieci testowych współczynników
-    let _ = i2c.write(address, &array_1st_page);
-    delay.delay_ms(100 as u32);
-    let _ = i2c.write(address, &array_2nd_page);
-    delay.delay_ms(100 as u32);
-    // Odczytanie przykładowych współczynników
-    let mut detector_coefficients : [f32; 4] = [0.0; 4];
+//     // Wpisanie do pamieci testowych współczynników
+//     let _ = i2c.write(address, &array_1st_page);
+//     delay.delay_ms(100 as u32);
+//     let _ = i2c.write(address, &array_2nd_page);
+//     delay.delay_ms(100 as u32);
+//     // Odczytanie przykładowych współczynników
+//     let mut detector_coefficients : [f32; 4] = [0.0; 4];
 
-    //    / (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(i2c);
+//     //    / (detector_coefficients[0], detector_coefficients[1], detector_coefficients[2], detector_coefficients[3]) = read_detector_coefficients(i2c);
 
-        // // log::info!("Przykładowe wartości parametrów do testów: {} {} {} {}",    data[0].to_bits() as u32, data[1].to_bits() as u32, data[2].to_bits() as u32, data[3].to_bits() as u32);
-        // log::info!("Odczytane wartości z eepromu:              {} {} {} {}",    detector_coefficients[0].to_bits() as u32, detector_coefficients[1].to_bits() as u32, 
-        //                                                                         detector_coefficients[2].to_bits() as u32, detector_coefficients[3].to_bits() as u32);
+//         // // log::info!("Przykładowe wartości parametrów do testów: {} {} {} {}",    data[0].to_bits() as u32, data[1].to_bits() as u32, data[2].to_bits() as u32, data[3].to_bits() as u32);
+//         // log::info!("Odczytane wartości z eepromu:              {} {} {} {}",    detector_coefficients[0].to_bits() as u32, detector_coefficients[1].to_bits() as u32, 
+//         //                                                                         detector_coefficients[2].to_bits() as u32, detector_coefficients[3].to_bits() as u32);
 
-}
+// }
 
 pub fn set_device_name<T>(i2c: &mut T) -> ()
 where 
@@ -251,3 +254,31 @@ where
     }
 
 }
+
+pub fn read_ch_calibration<T>(i2c: &mut T, ch : u8) -> ([u8; 6])
+where
+    T: WriteRead,
+{
+    let mut addr : u8 = 0;
+    match ch{
+        1 => addr = EEPROM_CH1_CALIBRATION,
+        2 => addr = EEPROM_CH2_CALIBRATION,
+        _ => log::info!("Wrong channel selected")
+    }
+
+    let mut buffer : [u8; 6] = [0; 6];
+    if addr != 0 {
+        let _ = i2c.write_read(I2C_ADDR, &[addr], &mut buffer);
+        log::info!("Odczytane parametry ch{} : {}, {}, {}, {}, {}, {}", ch, buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5]);
+        return buffer;
+    } else {
+        return [0; 6]
+    }
+}
+
+pub fn write_eeprom_addr<T>(i2c: &mut T, addr : u8, val : u8)
+where
+    T: Write,
+{
+    let _ = i2c.write(I2C_ADDR, &mut [addr, val]);
+}   

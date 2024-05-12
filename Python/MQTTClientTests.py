@@ -23,6 +23,11 @@ PythonClient.connect(Connect.MosquittoBroker, Connect.MosquittoPort, 60)
 
 print("Połączono")
 
+TOPIC_1 = "temp1"
+TOPIC_2 = "temp2"
+TOPIC_3 = "p1"
+TOPIC_4 = "p2"
+
 PythonClient.subscribe("Topic/subtopic1")
 PythonClient.subscribe("Topic/subtopic2")
 PythonClient.subscribe("Topic/subtopic3")
@@ -39,11 +44,19 @@ while(True):
     # print("{} A".format(r))
 
     
-    r = random.randint(500, 550)
-    PythonClient.publish("Power", str(r))
-    print("{} W".format(r))
+    # r = random.randint(500, 550)
+    # PythonClient.publish("Power", str(r))
+    # print("{} W".format(r))
 
-    time.sleep(2)
-    PythonClient.publish("dt/sinara/silpa_test/fc-0f-e7-23-49-bc/settings/s0_silpadefault/telemetry", MQTT_MSG)
+    time.sleep(1)
+    r3 = random.randint(-5, 0)
+    r4 = random.randint(-10, -7)
+    r1 = random.randint(41, 42)
+    r2 = random.randint(44, 47)
+    PythonClient.publish(TOPIC_1, str(r1))
+    PythonClient.publish(TOPIC_2, str(r2))
+    PythonClient.publish(TOPIC_3, str(r3))
+    PythonClient.publish(TOPIC_4, str(r4))
+    # PythonClient.publish("dt/sinara/silpa_test/fc-0f-e7-23-49-bc/settings/s0_silpadefault/telemetry", MQTT_MSG)
     print("Wysyłanie wiadomości")
     # PythonClient.loop_forever()

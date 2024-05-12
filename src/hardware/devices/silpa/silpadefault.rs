@@ -8,7 +8,7 @@ use smoltcp_nal::smoltcp::wire::ArpHardware;
 use stm32h7xx_hal::i2c::Stop;
 use stm32h7xx_hal::pac::i2c1::cr1::PE_A;
 use stm32h7xx_hal::pac::i2c1::CR1;
-use crate::hardware::eeprom::{check_device_name, read_detector_coefficients, set_device_name, SiLPADetector};
+use crate::hardware::eeprom::{check_device_name, read_ch_calibration, read_detector_coefficients, set_device_name, write_eeprom_addr, SiLPADetector};
 use crate::hardware::setup::{SlotsBus};
 use crate::hardware::{ServMod, self};
 use crate::hardware::devices::max1329::adc::AdcCode;
@@ -21,7 +21,6 @@ use serde::Serialize;
 use crate::hardware::ecp5::ECP5;
 use crate::hardware::devices::max1329::{self, Max1329,adc, dac};
 use stm32h7xx_hal::rcc::{rec, CoreClocks, ResetEnable};
-use stm32h7xx_hal::pac::I2C4 as bp_i2c;
 
 
 use embedded_hal::blocking::i2c::{Read, Write, WriteRead};
@@ -53,12 +52,20 @@ impl TelemetryBuffer{
         self.telemetry
     }
 
-    pub fn set_ch1_output_power_field(&mut self, val : AdcCode){
-        self.telemetry.output_power[0] = calculate_output_power(vrms_to_dbm_converter(bits_to_f32(val.0)));
+    pub fn set_ch1_output_power_field(&mut self, val : AdcCode, slope : u16, intercept : u16, threshold : u16){
+        if val.0 < threshold {
+            self.telemetry.output_power[0] = -30.0;
+        } else {
+            self.telemetry.output_power[0] = ((val.0 as f32 - intercept as f32)/slope as f32) as f32;
+        }
     }
 
-    pub fn set_ch2_output_power_field(&mut self, val : AdcCode){
-        self.telemetry.output_power[1] = calculate_output_power(vrms_to_dbm_converter(bits_to_f32(val.0)));
+    pub fn set_ch2_output_power_field(&mut self, val : AdcCode, slope : u16, intercept : u16, threshold : u16){
+        if val.0 < threshold {
+            self.telemetry.output_power[1] = -30.0;
+        } else {
+            self.telemetry.output_power[1] = ((val.0 as f32 - intercept as f32)/slope as f32) as f32;
+        }
     }
 
     pub fn set_ch1_temperature(&mut self, temp : f32){
@@ -75,7 +82,7 @@ pub struct Settings{
     adc_gt_threshold: u16,  // max 0xFFF
     adc_lt_threshold: u16,  // max 0xFFF
     dacs_enable     : [bool; 2],
-    pub dacs_value      : [f32; 2],  // max 0xFFF
+    pub p_threshold      : [f32; 2],  // max 0xFFF
     pub channels_locked : [bool; 2],
     pub channels_tos : [f32; 2],
     pub channels_thyst : [f32; 2],
@@ -90,8 +97,8 @@ impl Default for Settings{
             dacs_enable     : [false, false],
             channels_locked : [false, false],
             channels_thyst  : [10.0, 10.0], // Temperatura powrotu do normalnej pracy
-            channels_tos    : [55.0, 55.0], // Temperatura odlaczenia kanalu z powodu przegrzania  
-            dacs_value      : [0.0, 0.0],
+            channels_tos    : [75.0, 75.0], // Temperatura odlaczenia kanalu z powodu przegrzania  
+            p_threshold     : [0.0, 0.0],
             telemetry_period: 2,
         }
     }
@@ -112,16 +119,16 @@ impl Default for Telemetry{
     }
 }
 
-impl Telemetry{
-    pub fn set_ch1_output_power_field(&mut self, val : u16){
-        self.output_power[0] = vrms_to_dbm_converter(bits_to_f32(val));
-    }
+// impl Telemetry{
+//     pub fn set_ch1_output_power_field(&mut self, val : u16){
+//         self.output_power[0] = vrms_to_dbm_converter(bits_to_f32(val));
+//     }
 
-    pub fn set_ch2_output_power_field(&mut self, val : u16){
-        self.output_power[1] = vrms_to_dbm_converter(bits_to_f32(val));
-    }
+//     pub fn set_ch2_output_power_field(&mut self, val : u16){
+//         self.output_power[1] = vrms_to_dbm_converter(bits_to_f32(val));
+//     }
 
-}
+// }
 
 pub mod ECP5_Interrupts{
     pub const CHANNEL1_INACTIVE : u8 = 0x10;
@@ -136,7 +143,7 @@ pub mod ECP5_INPUTS{
 }
 
 pub struct SilpaDefault{
-    x : u8
+
 }
 
 impl Variants for SilpaDefault{
@@ -163,10 +170,26 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         self.bus.lock(| bus| {
             // Jednorazowo ustawic board name w EEPROMIE
             toggle_servmod(&mut bus.servmod, 0, self.slot);
-            set_device_name(&mut bus.cpcis_i2c);
-            check_device_name(&mut bus.cpcis_i2c, "SiLPA".as_bytes());
+
+            // Wpisanie jednorazowo danych do eepromu do kalibracji
+            write_eeprom_addr(&mut bus.cpcis_i2c, 0x40, u8::MAX  as u8); // wpisanie -1
+            write_eeprom_addr(&mut bus.cpcis_i2c, 0x41, (960 & 0x00FF) as u8);
+            write_eeprom_addr(&mut bus.cpcis_i2c, 0x42, ((960) >> 8) as u8);
+            write_eeprom_addr(&mut bus.cpcis_i2c, 0x43, 23 as u8);
+            write_eeprom_addr(&mut bus.cpcis_i2c, 0x44, (2950 & 0x00FF) as u8);
+            write_eeprom_addr(&mut bus.cpcis_i2c, 0x45, ((2950) >> 8) as u8);
+
+            write_eeprom_addr(&mut bus.cpcis_i2c, 0x46, u8::MAX  as u8); // wpisanie -1
+            write_eeprom_addr(&mut bus.cpcis_i2c, 0x47, (1140 & 0x00FF) as u8);
+            write_eeprom_addr(&mut bus.cpcis_i2c, 0x48, ((1140) >> 8) as u8);
+            write_eeprom_addr(&mut bus.cpcis_i2c, 0x49, 23 as u8);
+            write_eeprom_addr(&mut bus.cpcis_i2c, 0x50, (3110 & 0x00FF) as u8);
+            write_eeprom_addr(&mut bus.cpcis_i2c, 0x51, ((3110) >> 8) as u8);
+
+
+            // set_device_name(&mut bus.cpcis_i2c);
+            // check_device_name(&mut bus.cpcis_i2c, "SiLPA".as_bytes());
             toggle_servmod(&mut bus.servmod, 1, self.slot);
-            log::info!("Bus locked in Init()");
             bus.ecp5.write_oe(1, &mut [0, 192]);
             bus.ecp5.write_clear_interrupts(1, &mut [0xffu8; 2]);
             bus.ecp5.write_interrupts_mask(1, &mut [0, 48]);
@@ -199,8 +222,11 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             hardware::lm75a::set_thyst(&mut bus.cpcis_i2c, 0b1001_000, self.settings.channels_thyst[0]); // THYST CH1
             hardware::lm75a::set_thyst(&mut bus.cpcis_i2c, 0b1001_001, self.settings.channels_thyst[1]);
 
-            self.detector = read_detector_coefficients(&mut bus.cpcis_i2c);
-
+            // self.detector = read_detector_coefficients(&mut bus.cpcis_i2c);
+            (self.slope[0], self.intercept[0]) = set_ch_calibration(&mut bus.cpcis_i2c, 1);
+            (self.slope[1], self.intercept[1]) = set_ch_calibration(&mut bus.cpcis_i2c, 2);
+            log::info!("CH1 kalibracja: {} {}", self.slope[0], self.intercept[0]);
+            log::info!("CH2 kalibracja: {} {}", self.slope[1], self.intercept[1]);
 
             toggle_servmod(&mut bus.servmod, 1, self.slot);
         });
@@ -227,9 +253,9 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             log::info!("Chanels locked: {} {}", new_settings.channels_locked[0], new_settings.channels_locked[1]);
 
             for n in 0..2 {
-                if (self.settings.dacs_value[n] != new_settings.dacs_value[n]) & self.settings.dacs_enable[n] == true {
-                    calculate_dac_value(new_settings.dacs_value[n], (n + 1) as u8, &mut bus.ecp5);
-                    log::info!("Zmiana Wartosci DAC {}: {}", n, new_settings.dacs_value[n]);
+                if (self.settings.p_threshold[n] != new_settings.p_threshold[n]) & self.settings.dacs_enable[n] == true {
+                    calculate_dac_value(new_settings.p_threshold[n], (n + 1) as u8, self.slope[n], self.intercept[n], &mut bus.ecp5);
+                    log::info!("Zmiana Wartosci DAC {}: {}", n, new_settings.p_threshold[n]);
                 } 
 
                 if self.settings.channels_tos[n] != new_settings.channels_tos[n] {
@@ -280,6 +306,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             };
             match hardware::lm75a::read_temp(&mut bus.cpcis_i2c, 0b1001_001){
                 Ok(temp) => {
+                    log::info!("Temp 2: {}", temp);
                     self.telemetry.set_ch2_temperature(temp);
                 },
                 Err(e) => panic!("{:?}", e),
@@ -291,32 +318,21 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             }
             
             let mut adc_val = Max1329::read_adc_data_register(1, &mut bus.ecp5);
-            self.telemetry.set_ch1_output_power_field(adc_val);
-
+            log::info!("CH1 ADC : {}", adc_val.0);
+            self.telemetry.set_ch1_output_power_field(adc_val, self.slope[0], self.intercept[0], self.signal_absence[0]);
+            log::info!("CH1 Power : {}", self.telemetry.telemetry.output_power[0]);
 
             Max1329::set_adc_setup_direct(1,&mut bus.ecp5, max1329::adc::Mux::AIN2_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
             while (Max1329::read_status_register(1, &mut bus.ecp5) | (1 << 20)) == 0 {
             }
             
             adc_val = Max1329::read_adc_data_register(1, &mut bus.ecp5);
-            self.telemetry.set_ch2_output_power_field(adc_val);
+            log::info!("CH2 ADC : {}", adc_val.0);
+            self.telemetry.set_ch2_output_power_field(adc_val, self.slope[1], self.intercept[1], self.signal_absence[1]);
+            log::info!("CH2 Power : {}", self.telemetry.telemetry.output_power[1]);
 
         });
         
-        // let device = stm32h7xx_hal::stm32::Peripherals::take();
-        // let i2c = self.backplane.i2c;
-        // let mut i2c_ptr = stm32h7xx_hal::stm32::I2C4::ptr();
-        // (unsafe { *i2c_ptr }).cr1.write(|w| w.pe().disabled());
-
-        // device.I2C4.cr1.write(|w| unsafe {w.pe().disabled()});
-        // delay.delay_ms(1 as u32);
-        // device.I2C4.cr1.write(|w| unsafe {w.pe().enabled()});
-        // let y = &(self.backplane.i2c);
-        // let x = stm32h7xx_hal::stm32::I2C4::ptr();
-        // unsafe { x.read().cr1.write(|w| w.pe().disabled()) };
-        // delay.delay_ms(2 as u32);
-        // unsafe { x.read().cr1.write(|w| w.pe().enabled()) };
-        // self.backplane.i2c.master_stop();
         (self.telemetry.finalize(),
          self.settings.telemetry_period)
     }
@@ -345,46 +361,21 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
     }
 }
 
-impl SiLPA<SilpaDefault>
-{
+pub fn calculate_dac_value(ptreshold : f32, channel : u8, slope : u16, intercept : u16, ecp5: &mut ECP5){
 
-    // pub fn check_temperature(&mut self, channel : u8) -> f32   
-    // { 
-    //     let address : u8;
-    //     match channel{
-    //         1 => address = 0b1001_000,
-    //         2 => address = 0b1001_001,
-    //         _ => panic!("Incorrect LM75 Channel Address")     
-    //     };
-        
-    //     self.toggle_servmod(0);
+    let val : u16 = ((slope as f32) * ptreshold + intercept as f32) as u16;
 
-    //     let temp = hardware::lm75a::read_temp(&mut self.backplane.i2c, address); // Addr 0x48
-    //     self.toggle_servmod(1);
-    //     return temp;
-    // }
-
-    pub fn calculate_dac_detector_value(&mut self, slope : f32, intercept : f32, ptreshold : f32, channel : u8, ecp5: &mut ECP5){
-        let vin_detector = slope * (f32::sqrt(0.05 /f32::log10((ptreshold - 26.0)/10.0)) - intercept);
-        let bit_value : u16 = (vin_detector/1000.0 * 4095.0/ 2.5) as u16;  // 26 dB pochodzi z dzielnika 1k i 50 Ohm 
-        // Dzielenie przez 1000 aby zamienic na V z mV
-
-        match channel{
-            1 => {
-                Max1329::set_daca_value(1, ecp5, 0b0000_0010_1000_0011);
-                // Max1329::set_daca_value(1, ecp5, bit_value);
-                self.settings.dacs_value[0] = ptreshold;
-            },
-            2 => {
-                // Max1329::set_dacb_value(1, ecp5, bit_value); // Zamienic na self.slot
-                Max1329::set_dacb_value(1, ecp5, 0b0000_0010_1000_0011);
-                self.settings.dacs_value[1] = ptreshold;
-            },
-            _ => log::info!("Incorrect channel nubmer"),  
-        }
-
+    match channel{
+        1 => {
+            Max1329::set_daca_value(1, ecp5, 0b0000_0010_1000_0011);
+            // Max1329::set_daca_value(1, ecp5, val);
+        },
+        2 => {
+            // Max1329::set_dacb_value(1, ecp5, val); // Zamienic na self.slot
+            Max1329::set_dacb_value(1, ecp5, 0b0000_0010_1000_0011);
+        },
+        _ => log::info!("Incorrect channel nubmer"),  
     }
-    
 }
 
 pub fn toggle_servmod(servmod : &mut ServMod, state : u8, slot : u8){
@@ -415,20 +406,22 @@ pub fn toggle_servmod(servmod : &mut ServMod, state : u8, slot : u8){
     }
 }
 
-pub fn calculate_dac_value(dbm_value : f32, channel : u8, ecp5: &mut ECP5){
+pub fn set_ch_calibration<T>(i2c : &mut T, ch : u8) -> (u16, u16)
+where
+    T: WriteRead,
+{
+    let mut params : [u8; 6] = [0; 6];
+    params = read_ch_calibration(i2c, ch);
 
-    //TODO add calculations to bit value in OP Amp detector
-    match channel{
-        1 => {
-            Max1329::set_daca_value(1, ecp5, 0b0000_0010_1000_0011);
-            // Max1329::set_daca_value(1, ecp5, bit_value);
-        },
-        2 => {
-            // Max1329::set_dacb_value(1, ecp5, bit_value); // Zamienic na self.slot
-            Max1329::set_dacb_value(1, ecp5, 0b0000_0010_1000_0011);
-        },
-        _ => log::info!("Incorrect channel nubmer"),  
-    }    
+    let x1 : u8 = params[0];
+    let x2 : u8 = params[3];
+
+    let y1 : u16 = (params[2] as u16) << 8 | params[1] as u16;
+    let y2 : u16 = (params[5] as u16) << 8 | params[4] as u16;
+    let slope = (y2-y1)/(x2 as u16 - x1 as u16);
+    let intercept = y1 - slope * x1 as u16;
+
+    return (slope, intercept)
 }
 
 pub fn activate_channel(slot : u8, ecp5 : &mut ECP5, channel : u8){
@@ -450,26 +443,7 @@ pub fn activate_channel(slot : u8, ecp5 : &mut ECP5, channel : u8){
     }
 }
 
-pub fn vrms_to_dbm_converter(vrms : f32) -> f32{
-    let dbm = 30.0 +  20.0 * f32::log10(vrms/((50.0).sqrt()));
-    return dbm
-}
-
 pub fn bits_to_f32(val : u16) -> f32{
     let adc_as_f32 : f32 = (val as f32)/4096.0 * 2.5;
     return adc_as_f32
 }
-
-pub fn calculate_output_power(dbm : f32) -> f32{
-    let output_power = dbm + 26.0; // 26dB pochodzace z dzielnika 50 i 1k 
-    return output_power
-}
-
-pub fn calculate_input_power(output_dbm : f32) -> f32{
-    let input_power = output_dbm - AMPLIFIER_PARAMETERS::TOTAL_GAIN;
-    return input_power
-}
-
-
-
-
