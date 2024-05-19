@@ -298,7 +298,7 @@ pub fn setup(
     let gpiog = device.GPIOG.split(ccdr.peripheral.GPIOG);
 
     let interrupts_inputs = {
-        let int0 = gpioc.pc3.into_pull_up_input();
+        let int0 = gpioc.pc2.into_pull_up_input();
         let int1 = gpiod.pd1.into_pull_up_input();
         let int2 = gpiog.pg4.into_pull_up_input();
         let int3 = gpiog.pg5.into_pull_up_input();
@@ -323,7 +323,7 @@ pub fn setup(
         //let mut di01 = gpiog.pg9.into_pull_up_input();
         let di10 = gpiog.pg10.into_pull_down_input();
         //let di11 = gpiog.pg12.into_floating_input();
-        let di20 = gpioc.pc2.into_pull_down_input();
+        // let di20 = gpioc.pc2.into_pull_down_input();
         //let di21 = gpioc.pc3.into_floating_input();
         let di30 = gpiob.pb4.into_pull_down_input();
         //let di31 = gpiod.pd3.into_floating_input();
@@ -341,7 +341,8 @@ pub fn setup(
 //        di01.enable_interrupt(&mut exti);
 
         //(
-            (di00, di10, di20, di30, di40, di50, di60, di70)//,
+            // (di00, di10, di20, di30, di40, di50, di60, di70)//,
+            (di00, di10, di30, di40, di50, di60, di70)//,
         //    (di01, di11, di21, di31, di41, di51, di61, di71)
         //)
     };

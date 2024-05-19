@@ -38,7 +38,6 @@ use stm32h7xx_hal::{gpio::ExtiPin,
 //use core::option::Option::{self, Some};
 use stm_sys_board::net::settings::{Settings, Device0Type,
                                                DEVICE0_TELEMETRY_PREFIX,};
-use embedded_hal::blocking::delay::DelayMs;
 
 
 
@@ -103,16 +102,16 @@ mod app {
 
         
         let _i2c = stm_sys_board.therm_i2c;
-        let mut device0 = Device0Type::new(5, bus_manager.acquire_bus());
+        let mut device0 = Device0Type::new(1, bus_manager.acquire_bus());
 
         device0.init();
 
         
-        let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
-            400000000,
-        ));
+        // let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
+        //     400000000,
+        // ));
 
-        delay.delay_ms(1000 as u32);
+        // delay.delay_ms(1000 as u32);
         
         // if device0.init(&mut ecp5){
         //     telemetry0::spawn().unwrap();
@@ -211,10 +210,10 @@ mod app {
         // (device0, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
     }
 
-    #[task(binds = EXTI3, priority = 4, local = [exti_pin0], shared = [exti])]
+    #[task(binds = EXTI2, priority = 4, local = [exti_pin0], shared = [exti])]
     fn device0interrupt(mut c: device0interrupt::Context) {
         c.shared.exti.lock(|ex| {
-            if ex.is_pending(Event::GPIO3){
+            if ex.is_pending(Event::GPIO2){
                 c.local.exti_pin0.clear_interrupt_pending_bit();
                 device0_check_interrupt::spawn().unwrap();
             }

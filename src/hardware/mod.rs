@@ -25,7 +25,7 @@ pub type OutputOpenDrain = hal::gpio::Output<hal::gpio::OpenDrain>;
 pub type ECP5InterfaceReady = (
     DigitalInput0Slot0,
     DigitalInput0Slot1,
-    DigitalInput0Slot2,
+    // DigitalInput0Slot2,
     DigitalInput0Slot3,
     DigitalInput0Slot4,
     DigitalInput0Slot5,
@@ -55,7 +55,7 @@ pub type ExtIntPins = (
     ExtIntPin7,
 );
 
-pub type ExtIntPin0 = gpioc::PC3<InputPullUp>;
+pub type ExtIntPin0 = gpioc::PC2<InputPullUp>;
 pub type ExtIntPin1 = gpiod::PD1<InputPullUp>;
 pub type ExtIntPin2 = gpiog::PG4<InputPullUp>;
 pub type ExtIntPin3 = gpiog::PG5<InputPullUp>;

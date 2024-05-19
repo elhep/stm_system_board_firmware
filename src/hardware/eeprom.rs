@@ -20,7 +20,7 @@ const EEPROM_DATA_LENGTH: u8 = 0x08; // Po osiem bajtow danych na kalibracje dla
 const EEPROM_NAME : u8 = 0x06;
 
 const EEPROM_CH1_CALIBRATION : u8 = 0x40; // 1 pole na slope, 2 pola na intercept
-const EEPROM_CH2_CALIBRATION : u8 = 0x46; // 1 pole na slope, 2 pola na intercept
+const EEPROM_CH2_CALIBRATION : u8 = 0x60; // 1 pole na slope, 2 pola na intercept
 pub struct SiLPADetector{
     pub channel_1_slope: f32,
     pub channel_1_intercept: f32,
@@ -265,7 +265,7 @@ where
         2 => addr = EEPROM_CH2_CALIBRATION,
         _ => log::info!("Wrong channel selected")
     }
-
+    let mut tmp : [u8; 3] = [0; 3];
     let mut buffer : [u8; 6] = [0; 6];
     if addr != 0 {
         let _ = i2c.write_read(I2C_ADDR, &[addr], &mut buffer);
