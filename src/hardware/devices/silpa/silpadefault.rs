@@ -32,6 +32,10 @@ pub mod ECP5_OUTPUTS{
     pub const TOGGLE_CH1 : u8 = 0x40;
     pub const TOGGLE_CH2 : u8 = 0x80;
 }
+
+pub mod EEPROM_ADDR{
+    pub const BOARD_NAME : u8 = 16;
+}
 #[derive(Copy, Clone)]
 pub struct TelemetryBuffer{
     adc: adc::AdcCode,
@@ -170,49 +174,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 
             // Wpisanie jednorazowo danych do eepromu do kalibracji
             // write_eeprom_addr(&mut bus.cpcis_i2c, 0x40, u8::MAX  as u8); // wpisanie -1
-            // let mut buffer : [u8; 1] = [0; 1];
-            // let _ = bus.cpcis_i2c.write_read(0x50, &[0x40], &mut buffer);
-            // log::info!("0x40 : {}", buffer[0]);
             
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x41, (960 & 0x00FF) as u8);
-            // log::info!("Wpisywana wartosc: {}", (960 & 0x00FF) as u8); -- mlodszy bajt
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x42, ((960) >> 8) as u8);
-            // log::info!("Wpisywana wartosc: {}", ((960) >> 8) as u8); --starszy bajt
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x43, 23 as u8);
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x44, (2950 & 0x00FF) as u8);
-            // log::info!("Wpisywana wartosc: {}", (2950 & 0x00FF) as u8);
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x45, ((2950) >> 8) as u8);
-            // log::info!("Wpisywana wartosc: {}", ((2950) >> 8) as u8);
-
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x60, u8::MAX  as u8); // wpisanie -1
-            // delay.delay_ms(100 as u32);
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x61, (1140 & 0x00FF) as u8);
-            // delay.delay_ms(100 as u32);
-            // log::info!("Wpisywana wartosc: {}", (1140 & 0x00FF) as u8);
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x62, ((1140) >> 8) as u8);
-            // delay.delay_ms(100 as u32);
-            // log::info!("Wpisywana wartosc: {}", ((1140) >> 8) as u8);
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x63, 23 as u8);
-            // delay.delay_ms(100 as u32);
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x64, (3110 & 0x00FF) as u8);
-            // delay.delay_ms(100 as u32);
-            // log::info!("Wpisywana wartosc: {}", (3110 & 0x00FF) as u8);
-            // delay.delay_ms(100 as u32);
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x65, ((3110) >> 8) as u8);
-            // delay.delay_ms(100 as u32);
-
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x60, 0xff); // wpisanie -1
-            // delay.delay_ms(100 as u32);
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x61, 0xff);
-            // delay.delay_ms(100 as u32);
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x62, 0xff);
-            // delay.delay_ms(100 as u32);
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x63, 0xff);
-            // delay.delay_ms(100 as u32);
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x64, 0xff);
-            // delay.delay_ms(100 as u32);
-            // write_eeprom_addr(&mut bus.cpcis_i2c, 0x65, 0xff);
-            // delay.delay_ms(100 as u32);
 
             // let mut buffer : [u8; 2] = [0; 2];
             // log::info!("0x50 : {} {}", buffer[0], buffer[1]);
@@ -224,11 +186,24 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             // set_device_name(&mut bus.cpcis_i2c);
             // check_device_name(&mut bus.cpcis_i2c, "SiLPA".as_bytes());
             // toggle_servmod(&mut bus.servmod, 1, self.slot);
-            bus.ecp5.write_oe(self.slot - 1, &mut [0, 192]);
+            toggle_servmod(&mut bus.servmod, 0, self.slot);
 
-            let mut buffer : [u8; 2] = [0; 2];
-            bus.ecp5.read_oe(self.slot - 1, &mut buffer);
-            log::info!("Ustawione OE : {} {}", buffer[0], buffer[1]);
+            let mut buffer : [u8; 5] = [0; 5];
+            let _ = bus.cpcis_i2c.write_read(0x50, &[EEPROM_ADDR::BOARD_NAME], &mut buffer);
+            
+            let board_name = match core::str::from_utf8(&buffer) {
+                Ok(board_name) => board_name,
+                Err(_) => panic!("Failed converting board name"),
+            };
+
+            if board_name != "SiLPA"{
+                panic!("Wrong board name");
+            }
+
+            // let mut buffer : [u8; 2] = [0; 2];
+            // bus.ecp5.read_oe(self.slot - 1, &mut buffer);
+            // log::info!("Ustawione OE : {} {}", buffer[0], buffer[1]);
+            bus.ecp5.write_oe(self.slot - 1, &mut [0, 192]);
             bus.ecp5.write_clear_interrupts(self.slot - 1, &mut [0xffu8; 2]);
             bus.ecp5.write_interrupts_mask(self.slot - 1, &mut [0, 48]);
 
@@ -270,8 +245,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 
             // bus.ecp5.read_inputs(self.slot - 1, &mut ecp5_inputs);
             // log::info!("Wejscia FPGA 1 : {} {}", ecp5_inputs[1], ecp5_inputs[0]);
-    
-            toggle_servmod(&mut bus.servmod, 0, self.slot);
+
             hardware::lm75a::set_tos(&mut bus.cpcis_i2c, 0b1001_000, self.settings.channels_tos[0]); // TOS CH1
             hardware::lm75a::set_tos(&mut bus.cpcis_i2c, 0b1001_001, self.settings.channels_tos[1]); // TOS CH2
 
@@ -574,4 +548,20 @@ pub fn activate_channel(slot : u8, ecp5 : &mut ECP5, channel : u8){
         }
         _ => log::info!("Incorrect channel number"),
     }
+}
+
+pub fn create_name_array<T>(i2c : &mut T, name : &str) 
+where
+    T : Write
+{
+    let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(400000000));
+
+    let name_bytes = name.bytes();
+
+    for (i, byte) in name_bytes.enumerate() {
+        log::info!("{} {}", i , byte);
+        let _ = write_eeprom_addr(i2c, EEPROM_ADDR::BOARD_NAME + i as u8, byte);
+        delay.delay_ms(100 as u32);
+    }
+
 }
