@@ -36,6 +36,8 @@ pub mod ECP5_OUTPUTS{
 pub mod EEPROM_ADDR{
     pub const BOARD_NAME : u8 = 6;
     pub const BOARD_ID : u8 = 16; 
+    pub const BOARD_MAJOR_REV : u8 = 20;
+    pub const BOARD_MINOR_REV : u8 = 21;
 }
 #[derive(Copy, Clone)]
 pub struct TelemetryBuffer{
@@ -200,11 +202,23 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 panic!("Wrong board name");
             }
 
-            write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::BOARD_ID, 123 as u8); 
-            delay.delay_ms(100 as u32);
-            write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::BOARD_ID + 1, 77 as u8); 
+            // write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::BOARD_ID, 123 as u8); 
+            // delay.delay_ms(100 as u32);
+            // write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::BOARD_ID + 1, 77 as u8); 
             delay.delay_ms(100 as u32);
             read_board_id(&mut bus.cpcis_i2c, &[123 as u8, 77 as u8]);
+
+            delay.delay_ms(100 as u32);
+            write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::BOARD_MAJOR_REV, 1 as u8); 
+            delay.delay_ms(100 as u32);
+
+            write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::BOARD_MINOR_REV, 0 as u8); 
+            delay.delay_ms(100 as u32);
+
+            read_major_rev(&mut bus.cpcis_i2c, 1);
+            delay.delay_ms(100 as u32);
+            read_minor_rev(&mut bus.cpcis_i2c, 0);
+            delay.delay_ms(100 as u32);
 
             bus.ecp5.write_oe(self.slot - 1, &mut [0, 192]);
             bus.ecp5.write_clear_interrupts(self.slot - 1, &mut [0xffu8; 2]);
@@ -577,5 +591,33 @@ where
 
     if buffer != id{
         panic!("Wrong board ID")
+    }
+}
+
+pub fn read_major_rev<T>(i2c : &mut T, rev : u8) 
+where
+    T : WriteRead
+{
+    let mut buffer : [u8; 1] = [0; 1];
+    let _ = i2c.write_read(0x50, &[EEPROM_ADDR::BOARD_MAJOR_REV], &mut buffer);
+
+    log::info!("{}", buffer[0]);
+
+    if buffer[0] != rev{
+        panic!("Wrong major rev")
+    }
+}
+
+pub fn read_minor_rev<T>(i2c : &mut T, rev : u8) 
+where
+    T : WriteRead
+{
+    let mut buffer : [u8; 1] = [0; 1];
+    let _ = i2c.write_read(0x50, &[EEPROM_ADDR::BOARD_MINOR_REV], &mut buffer);
+
+    log::info!("{}", buffer[0]);
+
+    if buffer[0] != rev{
+        panic!("Wrong minor rev")
     }
 }
