@@ -34,6 +34,7 @@ pub mod ECP5_OUTPUTS{
 }
 
 pub mod EEPROM_ADDR{
+    pub const MAGIC_NUMBER : u8 = 4;
     pub const BOARD_NAME : u8 = 6;
     pub const BOARD_ID : u8 = 16; 
     pub const BOARD_MAJOR_REV : u8 = 20;
@@ -206,19 +207,19 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             // delay.delay_ms(100 as u32);
             // write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::BOARD_ID + 1, 77 as u8); 
             delay.delay_ms(100 as u32);
-            read_board_id(&mut bus.cpcis_i2c, &[123 as u8, 77 as u8]);
-
-            delay.delay_ms(100 as u32);
-            write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::BOARD_MAJOR_REV, 1 as u8); 
-            delay.delay_ms(100 as u32);
-
-            write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::BOARD_MINOR_REV, 0 as u8); 
-            delay.delay_ms(100 as u32);
+            read_board_id(&mut bus.cpcis_i2c, &[123 as u8, 77 as u8]); // TODO Change board id to other number
 
             read_major_rev(&mut bus.cpcis_i2c, 1);
             delay.delay_ms(100 as u32);
             read_minor_rev(&mut bus.cpcis_i2c, 0);
             delay.delay_ms(100 as u32);
+
+            write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::MAGIC_NUMBER, 0x39); 
+            delay.delay_ms(100 as u32);
+            write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::MAGIC_NUMBER + 1, 0x1E); 
+            delay.delay_ms(100 as u32);
+
+            read_magic_number(&mut bus.cpcis_i2c, &[0x39, 0x1E]);
 
             bus.ecp5.write_oe(self.slot - 1, &mut [0, 192]);
             bus.ecp5.write_clear_interrupts(self.slot - 1, &mut [0xffu8; 2]);
@@ -564,6 +565,20 @@ pub fn activate_channel(slot : u8, ecp5 : &mut ECP5, channel : u8){
     }
 }
 
+pub fn read_magic_number<T>(i2c : &mut T, id : &[u8]) 
+where
+    T : WriteRead
+{
+    let mut buffer : [u8; 2] = [0; 2];
+    let _ = i2c.write_read(0x50, &[EEPROM_ADDR::MAGIC_NUMBER], &mut buffer);
+
+    // log::info!("{} {}", buffer[0], buffer[1]);
+
+    if buffer != id{
+        panic!("Wrong magic number")
+    }
+}
+
 pub fn create_name_array<T>(i2c : &mut T, name : &str) 
 where
     T : Write
@@ -573,7 +588,7 @@ where
     let name_bytes = name.bytes();
 
     for (i, byte) in name_bytes.enumerate() {
-        log::info!("{} {}", i , byte);
+        // log::info!("{} {}", i , byte);
         let _ = write_eeprom_addr(i2c, EEPROM_ADDR::BOARD_NAME + i as u8, byte);
         delay.delay_ms(100 as u32);
     }
@@ -587,7 +602,7 @@ where
     let mut buffer : [u8; 2] = [0; 2];
     let _ = i2c.write_read(0x50, &[EEPROM_ADDR::BOARD_ID], &mut buffer);
 
-    log::info!("{} {}", buffer[0], buffer[1]);
+    // log::info!("{} {}", buffer[0], buffer[1]);
 
     if buffer != id{
         panic!("Wrong board ID")
@@ -601,7 +616,7 @@ where
     let mut buffer : [u8; 1] = [0; 1];
     let _ = i2c.write_read(0x50, &[EEPROM_ADDR::BOARD_MAJOR_REV], &mut buffer);
 
-    log::info!("{}", buffer[0]);
+    // log::info!("{}", buffer[0]);
 
     if buffer[0] != rev{
         panic!("Wrong major rev")
@@ -615,7 +630,7 @@ where
     let mut buffer : [u8; 1] = [0; 1];
     let _ = i2c.write_read(0x50, &[EEPROM_ADDR::BOARD_MINOR_REV], &mut buffer);
 
-    log::info!("{}", buffer[0]);
+    // log::info!("{}", buffer[0]);
 
     if buffer[0] != rev{
         panic!("Wrong minor rev")
