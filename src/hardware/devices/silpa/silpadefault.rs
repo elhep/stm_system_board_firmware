@@ -34,7 +34,8 @@ pub mod ECP5_OUTPUTS{
 }
 
 pub mod EEPROM_ADDR{
-    pub const BOARD_NAME : u8 = 16;
+    pub const BOARD_NAME : u8 = 6;
+    pub const BOARD_ID : u8 = 16; 
 }
 #[derive(Copy, Clone)]
 pub struct TelemetryBuffer{
@@ -166,7 +167,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 
         self.bus.lock(| bus| {
             // Jednorazowo ustawic board name w EEPROMIE
-            // toggle_servmod(&mut bus.servmod, 0, self.slot);
+            toggle_servmod(&mut bus.servmod, 0, self.slot);
 
             let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
                 400000000,
@@ -180,13 +181,12 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             // log::info!("0x50 : {} {}", buffer[0], buffer[1]);
             // log::info!("Wpisywana wartosc: {}", ((3110) >> 8) as u8);
 
-            // let _ = bus.cpcis_i2c.write(0x50, &[0x40, u8::MAX  as u8, (960 & 0x00FF) as u8, ((960) >> 8) as u8, 23 as u8, (2950 & 0x00FF) as u8, ((2950) >> 8) as u8]);
+            // let _ = bus.cpcis_i2c.write(0x50, &[EEPROM_ADDR::BOARD_ID, 123 as u8]);
+            // let _ = bus.cpcis_i2c.write(0x50, &[EEPROM_ADDR::BOARD_ID + 1, 77 as u8]);
             // let _ = bus.cpcis_i2c.write(0x50, &[0x60, u8::MAX  as u8, (1140 & 0x00FF) as u8, ((1140) >> 8) as u8, 23 as u8, (3110 & 0x00FF) as u8, ((3110) >> 8) as u8]);
 
-            // set_device_name(&mut bus.cpcis_i2c);
-            // check_device_name(&mut bus.cpcis_i2c, "SiLPA".as_bytes());
-            // toggle_servmod(&mut bus.servmod, 1, self.slot);
-            toggle_servmod(&mut bus.servmod, 0, self.slot);
+
+            // create_name_array(&mut bus.cpcis_i2c, "SiLPA"); -- wpisanie nazwy urzadzenia
 
             let mut buffer : [u8; 5] = [0; 5];
             let _ = bus.cpcis_i2c.write_read(0x50, &[EEPROM_ADDR::BOARD_NAME], &mut buffer);
@@ -200,16 +200,16 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 panic!("Wrong board name");
             }
 
-            // let mut buffer : [u8; 2] = [0; 2];
-            // bus.ecp5.read_oe(self.slot - 1, &mut buffer);
-            // log::info!("Ustawione OE : {} {}", buffer[0], buffer[1]);
+            write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::BOARD_ID, 123 as u8); 
+            delay.delay_ms(100 as u32);
+            write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::BOARD_ID + 1, 77 as u8); 
+            delay.delay_ms(100 as u32);
+            read_board_id(&mut bus.cpcis_i2c, &[123 as u8, 77 as u8]);
+
             bus.ecp5.write_oe(self.slot - 1, &mut [0, 192]);
             bus.ecp5.write_clear_interrupts(self.slot - 1, &mut [0xffu8; 2]);
             bus.ecp5.write_interrupts_mask(self.slot - 1, &mut [0, 48]);
-
-        
             bus.ecp5.read_interrupts_mask(self.slot - 1, &mut buffer);
-            log::info!("Ustawione interrupty : {} {}", buffer[0], buffer[1]);
 
             Max1329::setup_ecp5_spi_master(self.slot - 1, &mut bus.ecp5, 0);
             Max1329::reset_device(self.slot - 1, &mut bus.ecp5);
@@ -564,4 +564,18 @@ where
         delay.delay_ms(100 as u32);
     }
 
+}
+
+pub fn read_board_id<T>(i2c : &mut T, id : &[u8]) 
+where
+    T : WriteRead
+{
+    let mut buffer : [u8; 2] = [0; 2];
+    let _ = i2c.write_read(0x50, &[EEPROM_ADDR::BOARD_ID], &mut buffer);
+
+    log::info!("{} {}", buffer[0], buffer[1]);
+
+    if buffer != id{
+        panic!("Wrong board ID")
+    }
 }

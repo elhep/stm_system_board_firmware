@@ -244,8 +244,8 @@ pub fn check_device_name<T>(i2c: &mut T, name : &[u8]) -> ()
 where 
     T: WriteRead,
 {
-    const name_len: usize = 5;
-    let mut name_buff : [u8; name_len] = [0; name_len];
+    const NAME_LEN: usize = 5;
+    let mut name_buff : [u8; NAME_LEN] = [0; NAME_LEN];
 
     let _  =  i2c.write_read(I2C_ADDR, &[EEPROM_NAME], &mut name_buff);
 
