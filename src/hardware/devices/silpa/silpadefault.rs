@@ -75,6 +75,15 @@ impl TelemetryBuffer{
     pub fn set_ch2_temperature(&mut self, temp : f32){
         self.telemetry.channel_temperature[1] = temp;
     }
+
+    pub fn set_ch_locked(&mut self, channel : u8){
+        self.telemetry.is_channel_locked[channel as usize] = true;
+    }
+
+    pub fn set_ch_overheated(&mut self, channel : u8){
+        self.telemetry.is_channel_overheated[channel as usize] = true;
+    }
+
 }
 
 #[derive(Clone, Copy, Debug, Miniconf, PartialEq)]
@@ -102,13 +111,17 @@ impl Default for Settings{
 #[derive(Serialize, Clone, Copy)]
 pub struct Telemetry{
     output_power: [f32; 2],
-    channel_temperature: [f32; 2]
+    channel_temperature: [f32; 2],
+    is_channel_locked: [bool; 2],
+    is_channel_overheated : [bool; 2]
 }
 
 impl Default for Telemetry{
     fn default() -> Self {
         Self {  output_power : [0.0, 0.0],
-                channel_temperature : [0.0, 0.0]    
+                channel_temperature : [0.0, 0.0],
+                is_channel_locked : [false, false],
+                is_channel_overheated : [false, false]
             }
     }
 }
@@ -234,24 +247,29 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                                 max1329::dac::PowerDownConf::InOut,
                                 max1329::dac::OpAmp::Disable,
                                 max1329::dac::RefConf::Int2_5);
-            // Max1329::set_daca_value(self.slot - 1, &mut bus.ecp5, 0x0FFF);
-            // Max1329::set_dacb_value(self.slot - 1, &mut bus.ecp5, 0x0FFF); 
-            Max1329::set_daca_value(self.slot - 1, &mut bus.ecp5, 0x0000);
-            Max1329::set_dacb_value(self.slot - 1, &mut bus.ecp5, 0x0000); 
+            Max1329::set_daca_value(self.slot - 1, &mut bus.ecp5, 0x0FFF);
+            Max1329::set_dacb_value(self.slot - 1, &mut bus.ecp5, 0x0FFF); 
+            // Max1329::set_daca_value(self.slot - 1, &mut bus.ecp5, 0x0000);
+            // Max1329::set_dacb_value(self.slot - 1, &mut bus.ecp5, 0x0000); 
 
             Max1329::set_dpio_control_register(self.slot - 1, &mut bus.ecp5, 0xFFFF);
             Max1329::set_dpio_setup_register(self.slot - 1,  &mut bus.ecp5, 0x00);
             Max1329::set_interrupt_mask_register(self.slot - 1, &mut bus.ecp5, !(max1329::ADC | max1329::GTA | max1329::LTA));
 
-            let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
-            bus.ecp5.read_inputs(self.slot - 1, &mut ecp5_inputs);
-            log::info!("Wejscia FPGA 1 : {} {}", ecp5_inputs[1], ecp5_inputs[0]);
+            // let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
+            // bus.ecp5.read_inputs(self.slot - 1, &mut ecp5_inputs);
+            // log::info!("Wejscia FPGA 1 : {} {}", ecp5_inputs[1], ecp5_inputs[0]);
+            // bus.ecp5.write_outputs(self.slot - 1, &mut [0, 0]);
+            // bus.ecp5.write_outputs(self.slot - 1, &mut [0, 192]); // Odblookowywanie kanalow
 
-            bus.ecp5.write_outputs(self.slot - 1, &mut [0, 192]); // Odblookowywanie kanalow
-            bus.ecp5.write_outputs(self.slot - 1, &mut [0, 0]);
+            activate_channel(self.slot - 1, &mut bus.ecp5, 0 as u8);
+            activate_channel(self.slot - 1, &mut bus.ecp5, 1 as u8);
 
-            bus.ecp5.read_inputs(self.slot - 1, &mut ecp5_inputs);
-            log::info!("Wejscia FPGA 1 : {} {}", ecp5_inputs[1], ecp5_inputs[0]);
+
+            // bus.ecp5.write_outputs(self.slot - 1, &mut [0, 0]);
+
+            // bus.ecp5.read_inputs(self.slot - 1, &mut ecp5_inputs);
+            // log::info!("Wejscia FPGA 1 : {} {}", ecp5_inputs[1], ecp5_inputs[0]);
     
             toggle_servmod(&mut bus.servmod, 0, self.slot);
             hardware::lm75a::set_tos(&mut bus.cpcis_i2c, 0b1001_000, self.settings.channels_tos[0]); // TOS CH1
@@ -263,8 +281,8 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             (self.slope[0], self.intercept[0]) = set_ch_calibration(&mut bus.cpcis_i2c, 1);
             delay.delay_ms(200 as u32);
             (self.slope[1], self.intercept[1]) = set_ch_calibration(&mut bus.cpcis_i2c, 2);
-            // log::info!("CH1 kalibracja: {} {}", self.slope[0], self.intercept[0]);
-            // log::info!("CH2 kalibracja: {} {}", self.slope[1], self.intercept[1]);
+            log::info!("CH1 kalibracja: {} {}", self.slope[0], self.intercept[0]);
+            log::info!("CH2 kalibracja: {} {}", self.slope[1], self.intercept[1]);
 
             toggle_servmod(&mut bus.servmod, 1, self.slot);
 
@@ -311,6 +329,9 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 if (new_settings.channels_locked[n] == true) && (self.settings.channels_locked[n] != new_settings.channels_locked[n]) {
                     log::info!("Odblokowywanie {}", n);
                     activate_channel(self.slot - 1, &mut bus.ecp5, (n + 1) as u8);
+                    if self.telemetry.telemetry.is_channel_overheated[n] == false{
+                        self.telemetry.telemetry.is_channel_locked[n] = true;
+                    }
                 }
             }
 
@@ -319,9 +340,6 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
     }
 
     fn telemetry(&mut self) -> (Telemetry, u16) {
-        let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
-            400000000,
-        ));
 
         self.bus.lock(| bus| {
             toggle_servmod(&mut bus.servmod, 0, self.slot);
@@ -363,6 +381,13 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
                 let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
                 log::info!("CH1 ADC po DAC : {}", adc_val1.0);
+
+                
+                Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::FBA_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+                while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
+                let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
+                log::info!("CH1 FBA po DAC : {}", adc_val1.0);
+
                 self.telemetry.set_ch1_output_power_field(adc_val, self.slope[0], self.intercept[0], self.signal_absence[0]);
             }   else {
                 adc_val.0 = 0;
@@ -380,6 +405,12 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
                 let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
                 log::info!("CH2 ADC po DAC : {}", adc_val1.0);
+
+                Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::FBB_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+                while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
+                let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
+                log::info!("CH2 FBB po DAC : {}", adc_val1.0);
+
                 self.telemetry.set_ch2_output_power_field(adc_val, self.slope[1], self.intercept[1], self.signal_absence[1]);
         
             } else {
@@ -400,16 +431,14 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
             bus.ecp5.read_inputs(self.slot - 1, &mut ecp5_inputs);
             log::info!("Wartości na wejściach ECP5: {} {}", ecp5_inputs[0], ecp5_inputs[1]);
-            // - 4 - input, Kanal 1, '1' - input odciety, '0' - sygnal jest wzmacniany
-            // - 5 - input, Kanal 2, '1' - input odciety, '0' - sygnal jest wzmacniany
-            // - 6 - output - Kanal 1, '1' ustawienie na '1' resetuje uklad i wzmacniacz dziala
-            // - 7 - output - Kanal 2, '1' ustawienie na '1' resetuje uklad i wzmacniacz dziala
+
             toggle_servmod(&mut bus.servmod, 0, self.slot);
             match hardware::lm75a::read_temp(&mut bus.cpcis_i2c, 0b1001_000){
                 Ok(temp) => {
                     log::info!("Temp 1: {}", temp);
                     if temp > self.settings.channels_tos[0] {
                         log::info!("CH1 overheating");
+                        self.telemetry.set_ch_overheated(0);
                     }
                 },
                 Err(e) => panic!("{:?}", e),
@@ -420,6 +449,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                     log::info!("Temp 2: {}", temp);
                     if temp > self.settings.channels_tos[1] {
                         log::info!("CH2 overheating");
+                        self.telemetry.set_ch_overheated(1);
                     }
                 },
                 Err(e) => panic!("{:?}", e),
@@ -428,12 +458,14 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             if (ecp5_inputs[1] & ECP5_Interrupts::CHANNEL1_INACTIVE == ECP5_Interrupts::CHANNEL1_INACTIVE) {
                 // self.settings.channels_locked[0] = true;
                 log::info!("Stan wejsc: {}", ecp5_inputs[1]);
+                self.telemetry.set_ch_locked(0);
                 log::info!("Zablokowano kanał 1");
             }
 
             if (ecp5_inputs[1] & ECP5_Interrupts::CHANNEL2_INACTIVE == ECP5_Interrupts::CHANNEL2_INACTIVE) {
                 // self.settings.channels_locked[1] = true;
                 log::info!("Stan wejsc: {}", ecp5_inputs[1]);
+                self.telemetry.set_ch_locked(1);
                 log::info!("Zablokowano kanał 2");
             }
         });
@@ -516,6 +548,7 @@ pub fn activate_channel(slot : u8, ecp5 : &mut ECP5, channel : u8){
         1 => {
             // Dodac odczyt outputow i zrobic or z tym co jest tutaj
             let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
+            ecp5.write_outputs(slot, &[0, 0]);
             ecp5.read_inputs(slot, &mut ecp5_inputs);
             log::info!("Wejscia FPGA 1 : {} {}", ecp5_inputs[1], ecp5_inputs[0]);
             // ecp5.write_outputs(slot, &[0, 0x00 | ECP5_OUTPUTS::TOGGLE_CH1]);
@@ -528,6 +561,7 @@ pub fn activate_channel(slot : u8, ecp5 : &mut ECP5, channel : u8){
         },
         2 => {
             let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
+            ecp5.write_outputs(slot, &[0, 0]);
             ecp5.read_inputs(slot, &mut ecp5_inputs);
             log::info!("Wejscia FPGA 1 : {} {}", ecp5_inputs[1], ecp5_inputs[0]);
             // ecp5.write_outputs(slot, &[0, 0x00 | ECP5_OUTPUTS::TOGGLE_CH2]);
