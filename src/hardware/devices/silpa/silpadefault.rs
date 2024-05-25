@@ -85,11 +85,11 @@ impl TelemetryBuffer{
     }
 
     pub fn set_ch_locked(&mut self, channel : u8){
-        self.telemetry.is_channel_locked[channel as usize] = true;
+        self.telemetry.is_channel_locked[channel as usize] = 1;
     }
 
     pub fn set_ch_overheated(&mut self, channel : u8){
-        self.telemetry.is_channel_overheated[channel as usize] = true;
+        self.telemetry.is_channel_overheated[channel as usize] = 1;
     }
 
 }
@@ -120,16 +120,16 @@ impl Default for Settings{
 pub struct Telemetry{
     output_power: [f32; 2],
     channel_temperature: [f32; 2],
-    is_channel_locked: [bool; 2],
-    is_channel_overheated : [bool; 2]
+    is_channel_locked: [u8; 2],
+    is_channel_overheated : [u8; 2]
 }
 
 impl Default for Telemetry{
     fn default() -> Self {
         Self {  output_power : [0.0, 0.0],
                 channel_temperature : [0.0, 0.0],
-                is_channel_locked : [false, false],
-                is_channel_overheated : [false, false]
+                is_channel_locked : [0, 0],
+                is_channel_overheated : [0, 0]
             }
     }
 }
@@ -214,10 +214,10 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             read_minor_rev(&mut bus.cpcis_i2c, 0);
             delay.delay_ms(100 as u32);
 
-            write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::MAGIC_NUMBER, 0x39); 
-            delay.delay_ms(100 as u32);
-            write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::MAGIC_NUMBER + 1, 0x1E); 
-            delay.delay_ms(100 as u32);
+            // write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::MAGIC_NUMBER, 0x39); 
+            // delay.delay_ms(100 as u32);
+            // write_eeprom_addr(&mut bus.cpcis_i2c, EEPROM_ADDR::MAGIC_NUMBER + 1, 0x1E); 
+            // delay.delay_ms(100 as u32);
 
             read_magic_number(&mut bus.cpcis_i2c, &[0x39, 0x1E]);
 
@@ -318,8 +318,8 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 if (new_settings.channels_locked[n] == true) && (self.settings.channels_locked[n] != new_settings.channels_locked[n]) {
                     log::info!("Odblokowywanie {}", n);
                     activate_channel(self.slot - 1, &mut bus.ecp5, (n + 1) as u8);
-                    if self.telemetry.telemetry.is_channel_overheated[n] == false{
-                        self.telemetry.telemetry.is_channel_locked[n] = true;
+                    if self.telemetry.telemetry.is_channel_overheated[n] == 0{
+                        self.telemetry.telemetry.is_channel_locked[n] = 1;
                     }
                 }
             }
@@ -336,6 +336,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             // bus.ecp5.write_outputs(1, &mut [0, 192]); // Odblookowywanie kanalow
             // bus.ecp5.write_outputs(1, &mut [0, 0]);
 
+            log::info!("--------------");
             let x = stm32h7xx_hal::stm32::I2C4::ptr();
             while(unsafe { x.read().isr.read().busy().bit() == true}){
                 log::info!("I2C Busy");
@@ -372,10 +373,10 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 log::info!("CH1 ADC po DAC : {}", adc_val1.0);
 
                 
-                Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::FBA_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-                while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
-                let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
-                log::info!("CH1 FBA po DAC : {}", adc_val1.0);
+                // Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::FBA_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+                // while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
+                // let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
+                // log::info!("CH1 FBA po DAC : {}", adc_val1.0);
 
                 self.telemetry.set_ch1_output_power_field(adc_val, self.slope[0], self.intercept[0], self.signal_absence[0]);
             }   else {
@@ -395,10 +396,10 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
                 log::info!("CH2 ADC po DAC : {}", adc_val1.0);
 
-                Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::FBB_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-                while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
-                let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
-                log::info!("CH2 FBB po DAC : {}", adc_val1.0);
+                // Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::FBB_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+                // while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
+                // let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
+                // log::info!("CH2 FBB po DAC : {}", adc_val1.0);
 
                 self.telemetry.set_ch2_output_power_field(adc_val, self.slope[1], self.intercept[1], self.signal_absence[1]);
         
@@ -407,7 +408,12 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 self.telemetry.set_ch2_output_power_field(adc_val, self.slope[1], self.intercept[1], self.signal_absence[1]);
         
             }
+
+            log::info!("Locked inputs: {} {}", self.telemetry.telemetry.is_channel_locked[0], self.telemetry.telemetry.is_channel_locked[1]);
+            log::info!("Overheated channels: {} {}", self.telemetry.telemetry.is_channel_overheated[0], self.telemetry.telemetry.is_channel_overheated[1]);
         });
+
+        // self.telemetry.set_ch_locked[0]
         
         (self.telemetry.finalize(),
          self.settings.telemetry_period)

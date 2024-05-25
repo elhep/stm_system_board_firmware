@@ -191,21 +191,30 @@ mod app {
         ethernet_link::Monotonic::spawn_after(1.secs()).unwrap();
     }
 
-    #[task(priority = 3, shared=[device0])]
+    #[task(priority = 3, shared=[network, device0])]
     fn device0_check_interrupt(c: device0_check_interrupt::Context) {
         log::info!("------------ Interrupt Check --------------");
         let device0_check_interrupt::SharedResources{
             mut device0,
+            mut network
         } = c.shared;
 
         
-        (device0).lock(|device|
+        let (telemetry , _) = (device0).lock(|device|
             (
-                device.check_interrupt()
+                device.check_interrupt(),
+                device.telemetry()
             )
 
         ); 
+        
+        log::info!("Telemetry inside interrupt");
 
+        network.lock(|net| {
+            net.telemetry.publish(DEVICE0_TELEMETRY_PREFIX, &telemetry);
+            net.telemetry.update()
+        });
+        log::info!("------------ Interrupt Check Finished --------------");
         
         // (device0, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
     }
