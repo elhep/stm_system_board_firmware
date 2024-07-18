@@ -102,8 +102,21 @@ mod app {
         // let mut array : [u8; 2] = [0x00, 0x00];
 
 
-        servmod.4.set_high().unwrap();
-        servmod.4.set_low().unwrap();
+//         servmod.4.set_high().unwrap();
+//         servmod.4.set_low().unwrap();
+
+        ecp5.write_to_ecp5_new(0, &[0xab, 0xcd]);
+        let mut array = [0, 0];
+        ecp5.read_to_ecp5_new(0, &mut array);
+        log::info!("0: {}", array[0]);
+        log::info!("0: {}", array[1]);
+        ecp5.read_to_ecp5_new(160, &mut array);
+        log::info!("160: {}", array[0]);
+        log::info!("160: {}", array[1]);
+        ecp5.read_to_ecp5_new(161, &mut array);
+        log::info!("161: {}", array[0]);
+        log::info!("161: {}", array[1]);
+        panic!("bo tak");
 
         log::info!("Konfiguracja SPI dla slotu 2 (realnie 5)");
         Max1329::setup_ecp5_spi_master(1, &mut ecp5, 1);

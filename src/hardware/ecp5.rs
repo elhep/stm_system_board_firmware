@@ -75,6 +75,26 @@ impl ECP5 {
         self.qspi.write(reg_addr, data)
     }
 
+    pub fn write_to_ecp5_new(&mut self,
+                            reg_addr : u16,
+                            data: &[u8]
+    ) -> Result<(), hal::xspi::QspiError> {
+        while (self.qspi.is_busy() != Ok(())){
+            log::info!("WRITE ECP5: BUSY");
+        }
+        self.qspi.write_extended(stm32h7xx_hal::xspi::QspiWord::None, stm32h7xx_hal::xspi::QspiWord::U16(reg_addr), stm32h7xx_hal::xspi::QspiWord::None, data)
+    }
+
+    pub fn read_to_ecp5_new(&mut self,
+                            reg_addr : u16,
+                            data: &mut [u8]
+    ) -> Result<(), hal::xspi::QspiError> {
+        while (self.qspi.is_busy() != Ok(())){
+            log::info!("WRITE ECP5: BUSY");
+        }
+        self.qspi.read_extended(stm32h7xx_hal::xspi::QspiWord::None, stm32h7xx_hal::xspi::QspiWord::U16((1 << 15) | reg_addr), stm32h7xx_hal::xspi::QspiWord::None, 5, data)
+    }
+
     pub fn read_from_ecp5(&mut self,
                          reg_addr : u8,
                          data: &mut [u8]
