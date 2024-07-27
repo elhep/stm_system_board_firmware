@@ -15,7 +15,8 @@ where
     pub bus: BusReference,
     pub slope : [u16; 2],
     pub intercept : [u16; 2],
-    pub signal_absence : [u16; 2]
+    pub signal_absence : [u16; 2],
+    pub are_channel_activated : bool
 }
 
 impl<U> SiLPA <U>
@@ -34,7 +35,8 @@ where
             bus: bus,
             slope: [0; 2],
             intercept: [0; 2],
-            signal_absence: [700, 700]
+            signal_absence: [700, 700],
+            are_channel_activated: false
         }
 
     }

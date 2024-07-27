@@ -1,6 +1,7 @@
 /target/*
 /Python/__pycache__
 /Python/Connect.py
+/Python/Characteristics.py
 /Manuals/
 notes.txt
 Setup.docx

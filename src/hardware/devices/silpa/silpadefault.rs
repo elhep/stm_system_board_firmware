@@ -85,11 +85,11 @@ impl TelemetryBuffer{
     }
 
     pub fn set_ch_locked(&mut self, channel : u8){
-        self.telemetry.is_channel_locked[channel as usize] = true;
+        self.telemetry.is_channel_locked[channel as usize] = 1.0;
     }
 
     pub fn set_ch_overheated(&mut self, channel : u8){
-        self.telemetry.is_channel_overheated[channel as usize] = true;
+        self.telemetry.is_channel_overheated[channel as usize] = 1.0;
     }
 
 }
@@ -120,16 +120,16 @@ impl Default for Settings{
 pub struct Telemetry{
     output_power: [f32; 2],
     channel_temperature: [f32; 2],
-    is_channel_locked: [bool; 2],
-    is_channel_overheated : [bool; 2]
+    is_channel_locked: [f32; 2],
+    is_channel_overheated : [f32; 2]
 }
 
 impl Default for Telemetry{
     fn default() -> Self {
         Self {  output_power : [0.0, 0.0],
                 channel_temperature : [0.0, 0.0],
-                is_channel_locked : [false, false],
-                is_channel_overheated : [false, false]
+                is_channel_locked : [0.0, 0.0],
+                is_channel_overheated : [0.0, 0.0]
             }
     }
 }
@@ -252,8 +252,8 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             // bus.ecp5.write_outputs(self.slot - 1, &mut [0, 0]);
             // bus.ecp5.write_outputs(self.slot - 1, &mut [0, 192]); // Odblookowywanie kanalow
 
-            activate_channel(self.slot - 1, &mut bus.ecp5, 0 as u8);
-            activate_channel(self.slot - 1, &mut bus.ecp5, 1 as u8);
+            // activate_channel(self.slot - 1, &mut bus.ecp5, 0 as u8);
+            // activate_channel(self.slot - 1, &mut bus.ecp5, 1 as u8);
 
 
             // bus.ecp5.write_outputs(self.slot - 1, &mut [0, 0]);
@@ -264,17 +264,18 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
             hardware::lm75a::set_tos(&mut bus.cpcis_i2c, 0b1001_000, self.settings.channels_tos[0]); // TOS CH1
             hardware::lm75a::set_tos(&mut bus.cpcis_i2c, 0b1001_001, self.settings.channels_tos[1]); // TOS CH2
 
-            hardware::lm75a::set_thyst(&mut bus.cpcis_i2c, 0b1001_000, 10.0); // THYST CH1
-            hardware::lm75a::set_thyst(&mut bus.cpcis_i2c, 0b1001_001, 10.0);
+            hardware::lm75a::set_thyst(&mut bus.cpcis_i2c, 0b1001_000, 0.0); // THYST CH1
+            hardware::lm75a::set_thyst(&mut bus.cpcis_i2c, 0b1001_001, 0.0);
             // self.detector = read_detector_coefficients(&mut bus.cpcis_i2c);
             (self.slope[0], self.intercept[0]) = set_ch_calibration(&mut bus.cpcis_i2c, 1);
             delay.delay_ms(200 as u32);
             (self.slope[1], self.intercept[1]) = set_ch_calibration(&mut bus.cpcis_i2c, 2);
-            log::info!("CH1 kalibracja: {} {}", self.slope[0], self.intercept[0]);
-            log::info!("CH2 kalibracja: {} {}", self.slope[1], self.intercept[1]);
+            // log::info!("CH1 kalibracja: {} {}", self.slope[0], self.intercept[0]);
+            // log::info!("CH2 kalibracja: {} {}", self.slope[1], self.intercept[1]);
 
             toggle_servmod(&mut bus.servmod, 1, self.slot);
-
+            activate_channel(self.slot - 1, &mut bus.ecp5, 1 as u8);
+            activate_channel(self.slot - 1, &mut bus.ecp5, 2 as u8);
             bus.ecp5.write_clear_interrupts(self.slot - 1, &mut [0xffu8; 2]);
         });
 
@@ -318,9 +319,9 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 if (new_settings.channels_locked[n] == true) && (self.settings.channels_locked[n] != new_settings.channels_locked[n]) {
                     log::info!("Odblokowywanie {}", n);
                     activate_channel(self.slot - 1, &mut bus.ecp5, (n + 1) as u8);
-                    if self.telemetry.telemetry.is_channel_overheated[n] == false{
-                        self.telemetry.telemetry.is_channel_locked[n] = true;
-                    }
+                    // if self.telemetry.telemetry.is_channel_overheated[n] == false{
+                        self.telemetry.telemetry.is_channel_locked[n] = 0.0;
+                    // }
                 }
             }
 
@@ -332,6 +333,14 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
 
         self.bus.lock(| bus| {
             toggle_servmod(&mut bus.servmod, 0, self.slot);
+
+            // if self.are_channel_activated == false {
+            //     log::info!("ACtivating channels after power-up");
+            //     activate_channel(self.slot - 1, &mut bus.ecp5, 1 as u8);
+            //     activate_channel(self.slot - 1, &mut bus.ecp5, 2 as u8);
+            //     bus.ecp5.write_clear_interrupts(self.slot - 1, &mut [0xffu8; 2]); 
+            //     self.are_channel_activated = true;  
+            // }
 
             // bus.ecp5.write_outputs(1, &mut [0, 192]); // Odblookowywanie kanalow
             // bus.ecp5.write_outputs(1, &mut [0, 0]);
@@ -375,7 +384,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::FBA_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
                 while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
                 let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
-                log::info!("CH1 FBA po DAC : {}", adc_val1.0);
+                // log::info!("CH1 FBA po DAC : {}", adc_val1.0);
 
                 self.telemetry.set_ch1_output_power_field(adc_val, self.slope[0], self.intercept[0], self.signal_absence[0]);
             }   else {
@@ -398,7 +407,7 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::FBB_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
                 while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
                 let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
-                log::info!("CH2 FBB po DAC : {}", adc_val1.0);
+                // log::info!("CH2 FBB po DAC : {}", adc_val1.0);
 
                 self.telemetry.set_ch2_output_power_field(adc_val, self.slope[1], self.intercept[1], self.signal_absence[1]);
         
@@ -407,6 +416,10 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 self.telemetry.set_ch2_output_power_field(adc_val, self.slope[1], self.intercept[1], self.signal_absence[1]);
         
             }
+
+
+            // log::info!("CH1 locked: {}", self.telemetry.telemetry.is_channel_locked[0]);
+            // log::info!("CH2 locked: {}", self.telemetry.telemetry.is_channel_locked[1]);
         });
         
         (self.telemetry.finalize(),
@@ -416,27 +429,33 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
     fn check_interrupt(&mut self) {
 
         self.bus.lock(| bus| {
+
+            let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
+                400000000,
+            ));
+
             bus.ecp5.write_clear_interrupts(self.slot - 1,  &mut [0xffu8; 2]);
             let mut ecp5_inputs : [u8; 2] = [0x00, 0x00];
             bus.ecp5.read_inputs(self.slot - 1, &mut ecp5_inputs);
             log::info!("Wartości na wejściach ECP5: {} {}", ecp5_inputs[0], ecp5_inputs[1]);
 
             toggle_servmod(&mut bus.servmod, 0, self.slot);
+            delay.delay_ms(100 as u32);
             match hardware::lm75a::read_temp(&mut bus.cpcis_i2c, 0b1001_000){
                 Ok(temp) => {
                     log::info!("Temp 1: {}", temp);
-                    if temp > self.settings.channels_tos[0] {
+                    if temp >= self.settings.channels_tos[0] {
                         log::info!("CH1 overheating");
                         self.telemetry.set_ch_overheated(0);
                     }
                 },
                 Err(e) => panic!("{:?}", e),
             };
-
+            delay.delay_ms(100 as u32);
             match hardware::lm75a::read_temp(&mut bus.cpcis_i2c, 0b1001_001){
                 Ok(temp) => {
                     log::info!("Temp 2: {}", temp);
-                    if temp > self.settings.channels_tos[1] {
+                    if temp >= self.settings.channels_tos[1] {
                         log::info!("CH2 overheating");
                         self.telemetry.set_ch_overheated(1);
                     }
