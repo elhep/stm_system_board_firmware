@@ -479,6 +479,10 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
         });
 
     }
+
+    fn poll(&mut self)-> u32 {
+        return 0
+    }
 }
 
 pub fn calculate_dac_value(slot : u8, ptreshold : f32, channel : u8, slope : u16, intercept : u16, ecp5: &mut ECP5){

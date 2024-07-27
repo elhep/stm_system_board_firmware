@@ -315,6 +315,10 @@ impl Devices<Settings, Telemetry> for HVSUP_ISOL<$variant>{
         //     }
         // }
     }
+
+    fn poll(&mut self)-> u32 {
+        return 0
+    }
 }
     }};
  }

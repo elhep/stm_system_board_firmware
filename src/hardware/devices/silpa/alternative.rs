@@ -62,6 +62,8 @@ impl Devices  <Settings, Telemetry> for SiLPA<SilpaAlternative>
         (self.telemetry.finalize(), 10)
     }
     fn check_interrupt(&mut self){}
+
+    fn poll(&mut self)-> u32 {0}
 }
 
 

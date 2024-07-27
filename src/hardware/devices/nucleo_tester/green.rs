@@ -73,4 +73,8 @@ where
     }
 
     fn check_interrupt(&mut self) {}
+
+    fn poll(&mut self)-> u32 {
+        return 0
+    }
 }

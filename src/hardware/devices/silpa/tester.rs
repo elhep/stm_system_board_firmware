@@ -167,6 +167,10 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaTester>
         //     self.telemetry.adc = Max1329::read_adc_data_register(self.slot, ecp5);
         // }
     }
+
+    fn poll(&mut self)-> u32 {
+        return 0
+    }
 }
 
 impl SiLPA<SilpaTester>
