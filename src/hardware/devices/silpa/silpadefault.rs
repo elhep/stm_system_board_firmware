@@ -375,15 +375,15 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 adc_val = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
                 log::info!("CH1 ADC : {}", adc_val.0);
 
-                Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::OUTA_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-                while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
-                let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
-                log::info!("CH1 ADC po DAC : {}", adc_val1.0);
+                // Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::OUTA_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+                // while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
+                // let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
+                // log::info!("CH1 ADC po DAC : {}", adc_val1.0);
 
                 
-                Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::FBA_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-                while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
-                let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
+                // Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::FBA_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+                // while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
+                // let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
                 // log::info!("CH1 FBA po DAC : {}", adc_val1.0);
 
                 self.telemetry.set_ch1_output_power_field(adc_val, self.slope[0], self.intercept[0], self.signal_absence[0]);
@@ -399,14 +399,14 @@ impl Devices <Settings, Telemetry> for SiLPA<SilpaDefault>
                 let adc_val = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
                 log::info!("CH2 ADC : {}", adc_val.0);
 
-                Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::OUTB_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-                while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
-                let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
-                log::info!("CH2 ADC po DAC : {}", adc_val1.0);
+                // Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::OUTB_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+                // while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
+                // let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
+                // log::info!("CH2 ADC po DAC : {}", adc_val1.0);
 
-                Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::FBB_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-                while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
-                let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
+                // Max1329::set_adc_setup_direct(self.slot - 1,&mut bus.ecp5, max1329::adc::Mux::FBB_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
+                // while (Max1329::read_status_register(self.slot - 1, &mut bus.ecp5) | (1 << 20)) == 0 {}
+                // let adc_val1 = Max1329::read_adc_data_register(self.slot - 1, &mut bus.ecp5);
                 // log::info!("CH2 FBB po DAC : {}", adc_val1.0);
 
                 self.telemetry.set_ch2_output_power_field(adc_val, self.slope[1], self.intercept[1], self.signal_absence[1]);
