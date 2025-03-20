@@ -23,7 +23,8 @@ use stm_sys_board::{
         hal,
         SystemTimer, Systick, ecp5::ECP5,
         devices::Devices,
-        ExtIntPin0
+        ExtIntPin0,
+        bus_manager::*
     },
     net::{
         NetworkState, NetworkUsers,
@@ -37,7 +38,6 @@ use stm_sys_board::net::settings::{Settings, Device0Type,
                                                DEVICE0_TELEMETRY_PREFIX,};
 // use embedded_hal::blocking::delay::DelayMs;
 
-
 //struct SysBoardTelemetry {
 //    temp: u16,
 //}
@@ -48,6 +48,7 @@ mod app {
     //use heapless::binary_heap::Max;
     use stm_sys_board::hardware::devices::max1329;
     use stm_sys_board::hardware::devices::max1329::Max1329;
+    use stm_sys_board::hardware::setup::SlotsBus;
     //use stm_sys_board::hardware::ecp5::OFFSET_TO_SLOT;
     //use stm_sys_board::hardware::ecp5;
     use super::*;
@@ -58,7 +59,6 @@ mod app {
     #[shared]
     struct Shared {
         network: NetworkUsers<Settings>,
-        ecp5:    ECP5,
         device0: Device0Type,
         exti: EXTI,
     }
@@ -69,7 +69,7 @@ mod app {
         // i2c: hal::i2c::I2c<hal::stm32::I2C1>,
     }
 
-    #[init]
+    #[init (local = [bus_manager: Option<BusManager<SlotsBus>> = None])]
     fn init(c: init::Context) -> (Shared, Local, init::Monotonics) {
         let clock = SystemTimer::new(|| monotonics::now().ticks() as u32);
 
@@ -79,8 +79,6 @@ mod app {
             clock,
         );
 
-        let mut ecp5 = stm_sys_board.ecp5;
-
         let network = NetworkUsers::new(
             stm_sys_board.net.stack,
             stm_sys_board.net.phy,
@@ -88,133 +86,22 @@ mod app {
             env!("CARGO_BIN_NAME"),
             stm_sys_board.net.mac_address,
             option_env!("BROKER")
-                .unwrap_or("192.168.95.145")
+                .unwrap_or("192.168.0.101")
                 .parse()
                 .unwrap(),
             Settings::default(),
         );
 
-
         let _i2c = stm_sys_board.therm_i2c;
-        let _i2c_bp = stm_sys_board.cpcis_i2c;
-        let device0 = Device0Type::new(5);
-        let mut servmod = stm_sys_board.servmod;
-        // let mut array : [u8; 2] = [0x00, 0x00];
 
+        *c.local.bus_manager = Some(BusManager::new(stm_sys_board.slots_bus));
+        let bus_manager = c.local.bus_manager.as_ref().unwrap();
 
-//         servmod.4.set_high().unwrap();
-//         servmod.4.set_low().unwrap();
-
-        ecp5.write_to_ecp5_new(0, &[0xab, 0xcd]);
-        let mut array = [0, 0];
-        ecp5.read_to_ecp5_new(0, &mut array);
-        log::info!("0: {}", array[0]);
-        log::info!("0: {}", array[1]);
-        ecp5.read_to_ecp5_new(160, &mut array);
-        log::info!("160: {}", array[0]);
-        log::info!("160: {}", array[1]);
-        ecp5.read_to_ecp5_new(161, &mut array);
-        log::info!("161: {}", array[0]);
-        log::info!("161: {}", array[1]);
-        panic!("bo tak");
-
-        log::info!("Konfiguracja SPI dla slotu 2 (realnie 5)");
-        Max1329::setup_ecp5_spi_master(1, &mut ecp5, 1);
-
-
-        ecp5.write_oe(1, &[0, 0b0011_0000]);  // driving PSU_EN to 1 + HV EN
-        ecp5.write_outputs(1, &[0, 0b0000_0000]); // enable hv
-
-        log::info!("APIO MAX2: {}", Max1329::read_apio_control_register(1, &mut ecp5));
-        ecp5.set_spi_cs_pol(1, 1);
-        log::info!("APIO MAX1: {}", Max1329::read_apio_control_register(1, &mut ecp5));
-        ecp5.set_spi_cs_pol(1, 0);
-
-        Max1329::set_apio_control_register(1, &mut ecp5, 0b1111_1111);
-        // log::info!("MAX 1:");
-        // log::info!("{}", Max1329::read_interrrupt_mask_register(1, &mut ecp5)[0]);
-        // Max1329::set_interrupt_mask_register(1, &mut ecp5, 65536);
-        // log::info!("{}", Max1329::read_interrrupt_mask_register(1, &mut ecp5)[0]);
-        // //Max1329::setup_spi_cs_pol(1, &mut ecp5, 1);
-        // ecp5.set_spi_cs_pol(1,1);
-        //             log::info!("MAX 2:");
-        // log::info!("{}", Max1329::read_interrrupt_mask_register(1, &mut ecp5)[0]);
-        // Max1329::set_interrupt_mask_register(1, &mut ecp5, 131072);
-        // log::info!("{}", Max1329::read_interrrupt_mask_register(1, &mut ecp5)[0]);
-        // log::info!("MAX 1:");
-        // ecp5.set_spi_cs_pol(1,0);
-        // log::info!("{}", Max1329::read_interrrupt_mask_register(1, &mut ecp5)[0]);
-        // panic!("bo tak");
-
-        struct Variables {
-            pub cpvm_reg: u8,
-            pub reference: max1329::adc::RefConf,
-        }
-
-        let variables = Variables{ // External ref not burned but still have to setup internal punp
-            cpvm_reg: 0b1100_1001,
-            reference: max1329::adc::RefConf::ExtBuffOff,
-        };
-
-        Max1329::set_cpvm_control_register(1, &mut ecp5, variables.cpvm_reg);
-
-        #[allow(dead_code)]
-        fn test_dac(ecp: &mut ECP5){
-            log::info!("SET_DAC_CONTROL");
-            Max1329::set_dac_control(1,  ecp,
-                          max1329::dac::PowerDownConf::InOut,
-                          max1329::dac::PowerDownConf::InOut,
-                          max1329::dac::OpAmp::Disable,
-                          max1329::dac::RefConf::ExtBuffOff);
-            // log::info!("SET_DACA_VALUE");
-            let daca_value = 0b0000_0000_0000_0000;
-            let dacb_value = 0b0000_0000_0000_0000;
-            Max1329::set_daca_value(1, ecp, daca_value);
-            Max1329::set_dacb_value(1, ecp, dacb_value);
-
-        }
-
-        // //    -------------------------:::::::  ADC DAC CONFIG MAX 1  :::::::-------------------------
-
-        // Max1329::set_interrupt_mask_register(1, &mut ecp5, 0b1110_1111_1111_1111_1111_1111); // unmask ADC done
-        Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, variables.reference);
-        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-
-
-        Max1329::set_dpio_control_register(1, &mut ecp5, 0xFFFF);  // outputs
-        Max1329::set_dpio_setup_register(1, &mut ecp5, 0x00);      // all low
-
-        test_dac(&mut ecp5);
-
-        // //    -------------------------:::::::  ADC DAC CONFIG MAX 2  :::::::-------------------------
-        // //
-        log::info!("SECOND MAX: 1st step: APIO MODE");
-        //Max1329::set_apio_control_register(1, &mut ecp5, 0b1111_1111);
-
-        ecp5.set_spi_cs_pol(1, 1);
-        Max1329::set_dpio_control_register(1, &mut ecp5, 0xFFFF);  // outputs
-        Max1329::set_dpio_setup_register(1, &mut ecp5, 0x00);      // all low
-
-        let variables = Variables{ // External ref not burned but still have to setup internal punp
-            cpvm_reg: 0b1100_1001,
-            reference: max1329::adc::RefConf::ExtBuffOff,
-        };
-        Max1329::set_cpvm_control_register(1, &mut ecp5, variables.cpvm_reg);
-        // //
-        // Max1329::set_interrupt_mask_register(1, &mut ecp5, 0b1110_1111_1111_1111_1111_1111); // unmask ADC done
-        Max1329::set_adc_control_register(1, &mut ecp5, max1329::adc::AutoConversion::Disabled, max1329::adc::PowerDownConf::Normal, variables.reference);
-        Max1329::set_adc_setup_register(1, &mut ecp5, max1329::adc::Mux::AIN1_AGND, max1329::adc::Gain::G1, max1329::adc::Bip::Unipolar);
-
-        test_dac(&mut ecp5);
-
-        ecp5.set_spi_cs_pol(1, 0);
-
-
-
+        let mut device0 = Device0Type::new(5, bus_manager.acquire_bus());
+        device0.init();
 
         let shared = Shared {
             network,
-            ecp5,
             device0,
             exti,
         };
@@ -222,11 +109,11 @@ mod app {
 
         let local = Local {
             exti_pin0: exti_pins.0,
-            // i2c,
         };
 
-        //settings_update::spawn().unwrap();
+        // settings_update::spawn().unwrap();
         telemetry0::spawn().unwrap();
+        poll0::spawn().unwrap();
         ethernet_link::spawn().unwrap();
 
         (shared, local, init::Monotonics(stm_sys_board.systick))
@@ -252,31 +139,37 @@ mod app {
         }
     }
 
-    #[task(priority = 2, shared=[network, ecp5, device0])]
+    #[task(priority = 2, shared=[network, device0])]
     fn settings_update(c: settings_update::Context) {
         let settings_update::SharedResources{
-            mut device0, mut ecp5, mut network
+            mut device0, mut network
         } = c.shared;
         let settings = network.lock(|net| *net.miniconf.settings());
 
-        (ecp5).lock(|ecp5| {
-            match settings.device0_settings() {
-                Some(dev_settings) => (device0).lock(|device| device.settings_update(ecp5, dev_settings)),
+        match settings.device0_settings() {
+            Some(dev_settings) => (device0).lock(|device| device.settings_update(dev_settings)),
             None => {},
-            }
-        });
+        }
 
         // log::info!("SETTINGS UPDATE");
     }
 
-    #[task(priority = 1, shared=[network, ecp5, device0])]
+    #[task(priority = 1, shared=[network, device0])]
     fn telemetry0(mut c: telemetry0::Context) {
-        let (telemetry, telemetry_period) = c.shared.ecp5.lock(|ecp5| c.shared.device0.lock(|device| (device.telemetry(ecp5))));
+        let (telemetry, telemetry_period) = c.shared.device0.lock(|device| (device.telemetry()));
 
         c.shared.network.lock(|net| net.telemetry.publish(DEVICE0_TELEMETRY_PREFIX, &telemetry));
-        // log::info!("TELEMETRY");
         telemetry0::Monotonic::spawn_after((telemetry_period as u64).millis())
             .unwrap();
+    }
+
+    #[task(priority = 1, shared=[network, device0])]
+    fn poll0(mut c: poll0::Context) {
+        let delay = c.shared.device0.lock(|dev| dev.poll());
+        monotonics::now().ticks();
+        if delay != 0 {
+            poll0::Monotonic::spawn_after((delay as u64).millis()).unwrap();
+        }
     }
 
 
@@ -286,21 +179,18 @@ mod app {
         ethernet_link::Monotonic::spawn_after(1.secs()).unwrap();
     }
 
-    #[task(priority = 3, shared=[device0, ecp5])]
-    fn device0_check_interrupt(c: device0_check_interrupt::Context) {
-        let device0_check_interrupt::SharedResources{
-            device0, ecp5,
-        } = c.shared;
-        (device0, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
+    #[task(priority = 3, shared=[device0])]
+    fn device0_check_interrupt(mut c: device0_check_interrupt::Context) {
+        c.shared.device0.lock(|device| device.check_interrupt());
     }
 
     #[task(binds = EXTI3, priority = 4, local = [exti_pin0], shared = [exti])]
     fn device0interrupt(mut c: device0interrupt::Context) {
         log::info!(":::::::::::::::::::::::::::INTERRUPT:::::::::::::::::::::::::::::::");
         c.shared.exti.lock(|ex| {
-            if ex.is_pending(Event::GPIO3){
+            if ex.is_pending(Event::GPIO3) {
                 c.local.exti_pin0.clear_interrupt_pending_bit();
-                //device0_check_interrupt::spawn().unwrap();
+                device0_check_interrupt::spawn().unwrap();
             }
         })
     }
