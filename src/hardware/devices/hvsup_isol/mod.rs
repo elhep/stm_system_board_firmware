@@ -156,8 +156,8 @@ impl HvSupIsol {
             bus,
             interlock_high: false,
             // TODO(Adrian) - use slot number
-            board_controller: BoardController::new(1),
-            max_controller: MaxController::new(1),
+            board_controller: BoardController::new(slot_number),
+            max_controller: MaxController::new(slot_number),
             a_variant,
             b_variant,
             calibrate_data: CalibrateData::default(),

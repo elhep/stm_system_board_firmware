@@ -21,20 +21,20 @@ use stm_sys_board::{
     hardware::{
         self,
         hal,
-        SystemTimer, Systick, ecp5::ECP5,
+        SystemTimer, Systick,
         devices::Devices,
-        ExtIntPin0, ExtIntPin1, ExtIntPin2,
-        ExtIntPin3, ExtIntPin4, ExtIntPin5,
-        ExtIntPin6,ExtIntPin7
+        ExtIntPin0, ExtIntPin1, ExtIntPin2, ExtIntPin3, ExtIntPin4, ExtIntPin5, ExtIntPin6, ExtIntPin7,
+        bus_manager::*
     },
     net::{
         NetworkState, NetworkUsers,
     },
 };
 use stm32h7xx_hal::{gpio::ExtiPin,
-                    exti::{Event, ExtiExt},
-                    device::EXTI, spi};
-use core::option::Option::{self, Some};
+    exti::{Event, ExtiExt},
+    device::EXTI,};
+use hal::prelude::_embedded_hal_blocking_i2c_WriteRead;
+//use core::option::Option::{self, Some};
 use stm_sys_board::net::settings::{Settings, Device0Type, Device1Type, Device2Type,
                                              Device3Type, Device4Type, Device5Type,
                                              Device6Type, Device7Type, DEVICE0_TELEMETRY_PREFIX,
@@ -42,7 +42,6 @@ use stm_sys_board::net::settings::{Settings, Device0Type, Device1Type, Device2Ty
                                              DEVICE3_TELEMETRY_PREFIX, DEVICE4_TELEMETRY_PREFIX,
                                              DEVICE5_TELEMETRY_PREFIX, DEVICE6_TELEMETRY_PREFIX,
                                              DEVICE7_TELEMETRY_PREFIX};
-use hal::prelude::_embedded_hal_blocking_i2c_WriteRead;
 
 
 //struct SysBoardTelemetry {
@@ -52,6 +51,8 @@ use hal::prelude::_embedded_hal_blocking_i2c_WriteRead;
 #[rtic::app(device = stm_sys_board::hardware::hal::stm32, peripherals = true, dispatchers=[DCMI, JPEG, LTDC, SDMMC])]
 mod app {
     use super::*;
+    use stm_sys_board::hardware::setup::SlotsBus;
+
 
     #[monotonic(binds = SysTick, default = true, priority = 2)]
     type Monotonic = Systick;
@@ -59,7 +60,6 @@ mod app {
     #[shared]
     struct Shared {
         network: NetworkUsers<Settings>,
-        ecp5:    ECP5,
         device0: Device0Type,
         device1: Device1Type,
         device2: Device2Type,
@@ -84,7 +84,7 @@ mod app {
         i2c: hal::i2c::I2c<hal::stm32::I2C1>,
     }
 
-    #[init]
+    #[init (local = [bus_manager: Option<BusManager<SlotsBus>> = None])]
     fn init(c: init::Context) -> (Shared, Local, init::Monotonics) {
         let clock = SystemTimer::new(|| monotonics::now().ticks() as u32);
 
@@ -93,8 +93,6 @@ mod app {
             c.device,
             clock,
         );
-
-        let mut ecp5 = stm_sys_board.ecp5;
 
         let network = NetworkUsers::new(
             stm_sys_board.net.stack,
@@ -111,49 +109,69 @@ mod app {
 
 
         let mut i2c = stm_sys_board.therm_i2c;
-        let mut spi = stm_sys_board.mlvds_dir_spi;
+        let mut _spi = stm_sys_board.mlvds_dir_spi;
         let mut data : [u8; 2] = [0; 2];
         i2c.write_read(0b1001000 as u8, &[0], &mut data).unwrap();
         let temp : u16 = ( (data[0] as u16) << 4) | ((data[1] as u16) >> 4);
         log::info!("Temp: {}", (temp as f32) * 0.0625);
 
-        let mut device0 = Device0Type::new(0);
-        let mut device1 = Device1Type::new(1);
-        let mut device2 = Device2Type::new(2);
-        let mut device3 = Device3Type::new(3);
-        let mut device4 = Device4Type::new(4);
-        let mut device5 = Device5Type::new(5);
-        let mut device6 = Device6Type::new(6);
-        let mut device7 = Device7Type::new(7);
 
-        if device0.init(&mut ecp5){
+        *c.local.bus_manager = Some(BusManager::new(stm_sys_board.slots_bus));
+        let bus_manager = c.local.bus_manager.as_ref().unwrap();
+
+        let mut device0 = Device0Type::new(0, bus_manager.acquire_bus());
+        let mut device1 = Device1Type::new(1, bus_manager.acquire_bus());
+        let mut device2 = Device2Type::new(2, bus_manager.acquire_bus());
+        let mut device3 = Device3Type::new(3, bus_manager.acquire_bus());
+        let mut device4 = Device4Type::new(4, bus_manager.acquire_bus());
+        let mut device5 = Device5Type::new(5, bus_manager.acquire_bus());
+        let mut device6 = Device6Type::new(6, bus_manager.acquire_bus());
+        let mut device7 = Device7Type::new(7, bus_manager.acquire_bus());
+
+        telemetry_stm::spawn().unwrap();
+
+        if device0.init(){
             telemetry0::spawn().unwrap();
+            //poll0::spawn().unwrap();
         }
-        if device1.init(&mut ecp5){
+        if device1.init(){
             telemetry1::spawn().unwrap();
+            //poll1::spawn().unwrap();
+
         }
-        if device2.init(&mut ecp5){
+        if device2.init(){
             telemetry2::spawn().unwrap();
+            //poll2::spawn().unwrap();
+
         }
-        if device3.init(&mut ecp5){
+        if device3.init(){
             telemetry3::spawn().unwrap();
+            //poll3::spawn().unwrap();
+
         }
-        if device4.init(&mut ecp5){
+        if device4.init(){
             telemetry4::spawn().unwrap();
+            //poll4::spawn().unwrap();
+
         }
-        if device5.init(&mut ecp5){
+        if device5.init(){
             telemetry5::spawn().unwrap();
+            //poll5::spawn().unwrap();
+
         }
-        if device6.init(&mut ecp5){
+        if device6.init(){
             telemetry6::spawn().unwrap();
+            //poll6::spawn().unwrap();
+
         }
-        if device7.init(&mut ecp5){
+        if device7.init(){
             telemetry7::spawn().unwrap();
+            //poll7::spawn().unwrap();
+
         }
 
         let shared = Shared {
             network,
-            ecp5,
             device0,
             device1,
             device2,
@@ -184,14 +202,9 @@ mod app {
         (shared, local, init::Monotonics(stm_sys_board.systick))
     }
 
-    #[idle(shared=[network], local=[i2c])]
+    #[idle(shared=[network])]
     fn idle(mut c: idle::Context) -> ! {
         loop {
-            let mut data : [u8; 2] = [0; 2];
-            c.local.i2c.write_read(0b1001000 as u8, &[0], &mut data).unwrap();
-            let temp : u16 = ( (data[0] as u16) << 4) | ((data[1] as u16) >> 4);
-            log::info!("Temp: {}", (temp as f32) * 0.0625);
-
             match c.shared.network.lock(|net| net.update()) {
                 NetworkState::SettingsChanged => {
                     settings_update::spawn().unwrap()
@@ -202,48 +215,60 @@ mod app {
         }
     }
 
-    #[task(priority = 1, shared=[network, ecp5, device0, device1, device2, device3, device4, device5, device6, device7])]
+    #[task(priority = 1, shared=[network, device0, device1, device2, device3, device4, device5, device6, device7])]
     fn settings_update(c: settings_update::Context) {
         let settings_update::SharedResources{
-            mut device0, mut device1, mut device2, mut device3, mut device4, mut device5, mut device6, mut device7, mut ecp5, mut network
+            mut device0, mut device1, mut device2, mut device3, mut device4, mut device5, mut device6, mut device7, mut network
         } = c.shared;
         let settings = network.lock(|net| *net.miniconf.settings());
 
-        (ecp5).lock(|ecp5| {
-            match settings.device0_settings() {
-                Some(dev_settings) => (device0).lock(|device| device.settings_update(ecp5, dev_settings)),
+        match settings.device0_settings() {
+            Some(dev_settings) => (device0).lock(|device| device.settings_update(dev_settings)),
             None => {},
-            }
-            match settings.device1_settings() {
-                Some(dev_settings) => (device1).lock(|device| device.settings_update(ecp5, dev_settings)),
-                None => {},
-            }
-            match settings.device2_settings() {
-                Some(dev_settings) => (device2).lock(|device| device.settings_update(ecp5, dev_settings)),
-                None => {},
-            }
-            match settings.device3_settings() {
-                Some(dev_settings) => (device3).lock(|device| device.settings_update(ecp5, dev_settings)),
-                None => {},
-            }
-            match settings.device4_settings() {
-                Some(dev_settings) => (device4).lock(|device| device.settings_update(ecp5, dev_settings)),
-                None => {},
-            }
-            match settings.device5_settings() {
-                Some(dev_settings) => (device5).lock(|device| device.settings_update(ecp5, dev_settings)),
-                None => {},
-            }
-            match settings.device6_settings() {
-                Some(dev_settings) => (device6).lock(|device| device.settings_update(ecp5, dev_settings)),
-                None => {},
-            }
-            match settings.device7_settings() {
-                Some(dev_settings) => (device7).lock(|device| device.settings_update(ecp5, dev_settings)),
-                None => {},
-            }
-        });
+        }
+        match settings.device1_settings() {
+            Some(dev_settings) => (device1).lock(|device| device.settings_update(dev_settings)),
+            None => {},
+        }
+        match settings.device2_settings() {
+            Some(dev_settings) => (device2).lock(|device| device.settings_update(dev_settings)),
+            None => {},
+        }
+        match settings.device3_settings() {
+            Some(dev_settings) => (device3).lock(|device| device.settings_update(dev_settings)),
+            None => {},
+        }
+        match settings.device4_settings() {
+            Some(dev_settings) => (device4).lock(|device| device.settings_update(dev_settings)),
+            None => {},
+        }
+        match settings.device5_settings() {
+            Some(dev_settings) => (device5).lock(|device| device.settings_update(dev_settings)),
+            None => {},
+        }
+        match settings.device6_settings() {
+            Some(dev_settings) => (device6).lock(|device| device.settings_update(dev_settings)),
+            None => {},
+        }
+        match settings.device7_settings() {
+            Some(dev_settings) => (device7).lock(|device| device.settings_update(dev_settings)),
+            None => {},
+        }
     }
+
+    #[task(priority = 1, shared=[network, device0], local=[i2c])]
+    fn telemetry_stm(mut c: telemetry_stm::Context) {
+        let mut data : [u8; 2] = [0; 2];
+        c.local.i2c.write_read(0b1001000 as u8, &[0], &mut data).unwrap();
+        let temp : u16 = ( (data[0] as u16) << 4) | ((data[1] as u16) >> 4);
+        log::info!("Temp: {}", (temp as f32) * 0.0625);
+
+        c.shared.network.lock(|net| net.telemetry.publish(DEVICE0_TELEMETRY_PREFIX, &temp));
+
+        telemetry0::Monotonic::spawn_after((2 as u64).secs())
+            .unwrap();
+    }
+
 
     #[task(priority = 1, shared=[network, device0])]
     fn telemetry0(mut c: telemetry0::Context) {
@@ -332,68 +357,44 @@ mod app {
         ethernet_link::Monotonic::spawn_after(1.secs()).unwrap();
     }
 
-    #[task(priority = 3, shared=[device0, ecp5])]
-    fn device0_check_interrupt(c: device0_check_interrupt::Context) {
-        let device0_check_interrupt::SharedResources{
-            device0, ecp5,
-        } = c.shared;
-        (device0, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
+    #[task(priority = 3, shared=[device0])]
+    fn device0_check_interrupt(mut c: device0_check_interrupt::Context) {
+        c.shared.device0.lock(|device| device.check_interrupt());
     }
 
-    #[task(priority = 3, shared=[device1, ecp5])]
-    fn device1_check_interrupt(c: device1_check_interrupt::Context) {
-        let device1_check_interrupt::SharedResources{
-            device1, ecp5,
-        } = c.shared;
-        (device1, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
+    #[task(priority = 3, shared=[device1])]
+    fn device1_check_interrupt(mut c: device1_check_interrupt::Context) {
+        c.shared.device1.lock(|device| device.check_interrupt());
     }
 
-    #[task(priority = 3, shared=[device2, ecp5])]
-    fn device2_check_interrupt(c: device2_check_interrupt::Context) {
-        let device2_check_interrupt::SharedResources{
-            device2, ecp5,
-        } = c.shared;
-        (device2, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
+    #[task(priority = 3, shared=[device2])]
+    fn device2_check_interrupt(mut c: device2_check_interrupt::Context) {
+        c.shared.device2.lock(|device| device.check_interrupt());
     }
 
-    #[task(priority = 3, shared=[device3, ecp5])]
-    fn device3_check_interrupt(c: device3_check_interrupt::Context) {
-        let device3_check_interrupt::SharedResources{
-            device3, ecp5,
-        } = c.shared;
-        (device3, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
+    #[task(priority = 3, shared=[device3])]
+    fn device3_check_interrupt(mut c: device3_check_interrupt::Context) {
+        c.shared.device3.lock(|device| device.check_interrupt());
     }
 
-    #[task(priority = 3, shared=[device4, ecp5])]
-    fn device4_check_interrupt(c: device4_check_interrupt::Context) {
-        let device4_check_interrupt::SharedResources{
-            device4, ecp5,
-        } = c.shared;
-        (device4, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
+    #[task(priority = 3, shared=[device4])]
+    fn device4_check_interrupt(mut c: device4_check_interrupt::Context) {
+        c.shared.device4.lock(|device| device.check_interrupt());
     }
 
-    #[task(priority = 3, shared=[device5, ecp5])]
-    fn device5_check_interrupt(c: device5_check_interrupt::Context) {
-        let device5_check_interrupt::SharedResources{
-            device5, ecp5,
-        } = c.shared;
-        (device5, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
+    #[task(priority = 3, shared=[device5])]
+    fn device5_check_interrupt(mut c: device5_check_interrupt::Context) {
+        c.shared.device5.lock(|device| device.check_interrupt());
     }
 
-    #[task(priority = 3, shared=[device6, ecp5])]
-    fn device6_check_interrupt(c: device6_check_interrupt::Context) {
-        let device6_check_interrupt::SharedResources{
-            device6, ecp5,
-        } = c.shared;
-        (device6, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
+    #[task(priority = 3, shared=[device6])]
+    fn device6_check_interrupt(mut c: device6_check_interrupt::Context) {
+        c.shared.device6.lock(|device| device.check_interrupt());
     }
 
-    #[task(priority = 3, shared=[device7, ecp5])]
-    fn device7_check_interrupt(c: device7_check_interrupt::Context) {
-        let device7_check_interrupt::SharedResources{
-            device7, ecp5,
-        } = c.shared;
-        (device7, ecp5).lock(|device, ecp5| device.check_interrupt(ecp5));
+    #[task(priority = 3, shared=[device7])]
+    fn device7_check_interrupt(mut c: device7_check_interrupt::Context) {
+        c.shared.device7.lock(|device| device.check_interrupt());
     }
 
     #[task(binds = EXTI9_5, priority = 4, local=[exti_pin3, exti_pin4, exti_pin5], shared=[exti])]

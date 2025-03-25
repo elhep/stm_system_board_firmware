@@ -3,9 +3,9 @@ pub mod max1329;
 // pub mod nucleo_tester;
 pub mod hvsup_isol;
 
+use crate::hardware::setup::BusReference;
 use miniconf::Miniconf;
 use serde::Serialize;
-use crate::hardware::ecp5::ECP5;
 
 // TODO finish trait
 
@@ -32,7 +32,7 @@ pub trait Variants
 
 pub struct EmptySlot{}
 impl EmptySlot{
-    pub fn new(_: u8) -> Self{ Self{}}
+    pub fn new(_: u8, _: BusReference) -> Self{ Self{}}
 }
 
 impl Devices<bool, bool> for EmptySlot{

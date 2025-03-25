@@ -45,12 +45,9 @@ use stm_sys_board::net::settings::{Settings, Device0Type,
 #[rtic::app(device = stm_sys_board::hardware::hal::stm32, peripherals = true, dispatchers=[DCMI, JPEG, LTDC, SDMMC])]
 mod app {
     use embedded_hal::digital::v2::OutputPin;
-    //use heapless::binary_heap::Max;
     use stm_sys_board::hardware::devices::max1329;
     use stm_sys_board::hardware::devices::max1329::Max1329;
     use stm_sys_board::hardware::setup::SlotsBus;
-    //use stm_sys_board::hardware::ecp5::OFFSET_TO_SLOT;
-    //use stm_sys_board::hardware::ecp5;
     use super::*;
 
     #[monotonic(binds = SysTick, default = true, priority = 2)]
@@ -66,7 +63,6 @@ mod app {
     #[local]
     struct Local {
         exti_pin0: ExtIntPin0,
-        // i2c: hal::i2c::I2c<hal::stm32::I2C1>,
     }
 
     #[init (local = [bus_manager: Option<BusManager<SlotsBus>> = None])]
@@ -131,11 +127,6 @@ mod app {
                 NetworkState::Updated => {}
                 NetworkState::NoChange => cortex_m::asm::wfi(),
             }
-            // let mut array = [0, 0];
-            // c.shared.ecp5.lock(|ecp| ecp.read_inputs(1, &mut array));
-            // log::info!("INPUTS: {} {}", array[0], array[1]);
-            // c.shared.ecp5.lock(|ecp| ecp.read_interrupts(1, &mut array));
-            // log::info!("Interrupts: {} {}", array[0], array[1]);
         }
     }
 
