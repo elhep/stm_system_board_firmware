@@ -1,6 +1,7 @@
 use super::max_controller::Coefs;
 use crate::hardware::ecp5::ECP5;
-use crate::hardware::{lm75a, setup::CpcisI2C, ServMod};
+use crate::hardware::{setup::CpcisI2C, ServMod};
+use crate::hardware::devices::ic::lm75a;
 use embedded_hal::{digital::v2::OutputPin, prelude::*};
 
 #[derive(Clone, Copy)]

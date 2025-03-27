@@ -7,14 +7,14 @@ pub use hal::gpio::gpiod as gpiod;
 pub use hal::gpio::gpioe as gpioe;
 pub use hal::gpio::gpiof as gpiof;
 pub use hal::gpio::gpiog as gpiog;
-pub mod devices;
 pub mod design_parameters;
 pub mod setup;
 pub mod ecp5;
-pub mod lm75a;
+pub mod devices;
+
 pub mod bus_manager;
 
-pub mod eeprom;
+
 pub type InputFloating = hal::gpio::Input<hal::gpio::Floating>;
 pub type InputPullUp = hal::gpio::Input<hal::gpio::PullUp>;
 pub type InputPullDown = hal::gpio::Input<hal::gpio::PullDown>;

@@ -22,7 +22,7 @@ use stm_sys_board::{
         self,
         hal,
         SystemTimer, Systick,
-        devices::Devices,
+        devices::boards::Devices,
         ExtIntPin0, ExtIntPin1, ExtIntPin2, ExtIntPin3, ExtIntPin4, ExtIntPin5, ExtIntPin6, ExtIntPin7,
         bus_manager::*
     },

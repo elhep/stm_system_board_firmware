@@ -22,7 +22,7 @@ use stm_sys_board::{
         self,
         hal,
         SystemTimer, Systick, ecp5::ECP5,
-        devices::Devices,
+        devices::boards::Devices,
         ExtIntPin0,
         bus_manager::*
     },
@@ -45,8 +45,8 @@ use stm_sys_board::net::settings::{Settings, Device0Type,
 #[rtic::app(device = stm_sys_board::hardware::hal::stm32, peripherals = true, dispatchers=[DCMI, JPEG, LTDC, SDMMC])]
 mod app {
     use embedded_hal::digital::v2::OutputPin;
-    use stm_sys_board::hardware::devices::max1329;
-    use stm_sys_board::hardware::devices::max1329::Max1329;
+    use stm_sys_board::hardware::devices::ic::max1329;
+    use stm_sys_board::hardware::devices::ic::max1329::Max1329;
     use stm_sys_board::hardware::setup::SlotsBus;
     use super::*;
 

@@ -18,8 +18,10 @@ use crate::hardware::DeviceIO;
 use crate::hardware::ecp5::ECP5;
 use crate::hardware::bus_manager::BusProxy;
 
+use crate::hardware::devices::ic::eeprom;
+
 use super::{
-    design_parameters, eeprom,
+    design_parameters,
     EthernetPhy, NetworkStack, SystemTimer, Systick, ExtIntPins, mon_bus_types as MonBusTypes,
     ServMod
 };

@@ -4,11 +4,11 @@
 //  use crate::hardware::devices::nucleo_tester::green::{self, Green};
 //  use crate::hardware::devices::nucleo_tester::yellow::{self, Yellow};
 //  use crate::hardware::devices::nucleo_tester::red::{self, Red};
- use crate::hardware::devices::hvsup_isol::{HvSupIsol, hvsuppospos::{self, HvSupPosPos},
+ use crate::hardware::devices::boards::hvsup_isol::{HvSupIsol, hvsuppospos::{self, HvSupPosPos},
                                                         hvsupnegneg::{self, HvSupNegNeg},
                                                         hvsupposneg::{self, HvSupPosNeg},
                                                         hvsupnegpos::{self, HvSupNegPos},};
- use crate::hardware::devices::EmptySlot;
+ use crate::hardware::devices::boards::EmptySlot;
 //  use crate::hardware::devices::nucleo_tester::{Nucleo};
  use crate::hardware::hal;
 

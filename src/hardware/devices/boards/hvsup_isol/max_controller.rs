@@ -3,7 +3,7 @@ use stm32h7xx_hal::device::bdma::ch;
 
 use super::timer::Timer;
 use super::{CalibrateData, CalibrateEntry};
-use crate::hardware::devices::max1329::*;
+use crate::hardware::devices::ic::max1329::*;
 use crate::hardware::{ecp5, ecp5::ECP5};
 use mono_clock::embedded_time::{duration::Milliseconds, Instant};
 
