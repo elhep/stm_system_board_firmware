@@ -17,7 +17,7 @@ impl IoPin {
 }
 
 pub struct BoardController {
-    slot: u8,
+    slot: u16,
     outputs: [u8; 2],
     interrupts_mask: u8,
 }
@@ -29,7 +29,7 @@ impl BoardController {
     const HV_EN_MASK: u8 = 0b0010_0000;
     const PSU_EN_MASK: u8 = 0b0001_0000;
 
-    pub fn new(slot: u8) -> BoardController {
+    pub fn new(slot: u16) -> BoardController {
         BoardController {
             slot,
             outputs: [0u8; 2],

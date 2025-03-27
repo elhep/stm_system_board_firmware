@@ -72,13 +72,13 @@ pub const RESET         :u8 = 31;
 
 
 pub struct Max1329{
-    slot: u8,
+    slot: u16,
 }
 
 
 impl Max1329 {
     pub fn new(
-        slot_number: u8,
+        slot_number: u16,
     ) -> Self {
         Self {
             slot: slot_number,
@@ -92,7 +92,7 @@ impl Max1329 {
     // }
 
     // Configure SPI in ECP5
-    pub fn setup_ecp5_spi_master(slot: u8, ecp: &mut ECP5, clk_pol: u8){ //TODO delete clk_pol as soon as HVSUP is fixed
+    pub fn setup_ecp5_spi_master(slot: u16, ecp: &mut ECP5, clk_pol: u8){ //TODO delete clk_pol as soon as HVSUP is fixed
         let offset = slot * ecp5::OFFSET_TO_SLOT + ecp5::OFFSET_TO_SPI;
         ecp.write_to_ecp5(offset + ecp5::SPI::LENGTH, &mut [0x00, 0x0F]).unwrap();
         ecp.write_to_ecp5(offset + ecp5::SPI::CS, &mut [0x00, 0x01]).unwrap();
@@ -106,7 +106,7 @@ impl Max1329 {
     }
 
     // INTERNAL REFERENCE ENABLE BIT is common for ADC and DAC
-    pub fn set_adc_control_register(slot: u8,
+    pub fn set_adc_control_register(slot: u16,
                            ecp5: &mut ECP5,
                            auto: adc::AutoConversion,
                            apd: adc::PowerDownConf,
@@ -117,7 +117,7 @@ impl Max1329 {
         ecp5.write_spi(slot, &data);
     }
 
-    pub fn read_adc_control_register(slot: u8,
+    pub fn read_adc_control_register(slot: u16,
                            ecp5: &mut ECP5) -> u8 {
         let mut data: [u8;1] = [0];
         ecp5.read_spi(slot, &[ADC_CONTROL | READ], &mut data);
@@ -125,7 +125,7 @@ impl Max1329 {
     }
 
 // Direct commnand CAN NOT change MSEL
-    pub fn set_adc_setup_direct(slot: u8,
+    pub fn set_adc_setup_direct(slot: u16,
                         ecp5: &mut ECP5,
                         mux: adc::Mux,
                         gain: adc::Gain,
@@ -134,14 +134,14 @@ impl Max1329 {
         ecp5.write_spi(slot, &[data]);
     }
 
-    pub fn read_adc_setup_register(slot: u8,
+    pub fn read_adc_setup_register(slot: u16,
                            ecp5: &mut ECP5) -> u8 {
         let mut data: [u8;1] = [0];
         ecp5.read_spi(slot, &[ADC_SETUP | READ], &mut data);
         data[0]
     }
 
-    pub fn set_adc_setup_register(slot: u8,
+    pub fn set_adc_setup_register(slot: u16,
                          ecp5: &mut ECP5,
                          mux: adc::Mux,
                          gain: adc::Gain,
@@ -152,7 +152,7 @@ impl Max1329 {
         ecp5.write_spi(slot, &data);
     }
 
-    pub fn read_adc_data_register(slot: u8, ecp5: &mut ECP5) -> adc::AdcCode {
+    pub fn read_adc_data_register(slot: u16, ecp5: &mut ECP5) -> adc::AdcCode {
         let mut data: [u8; 2] = [0; 2];
         let address = [READ | ADC_DATA];
         ecp5.read_spi(slot, &address, &mut data);
@@ -160,7 +160,7 @@ impl Max1329 {
         adc::AdcCode(((data[0] as u16) << 4) | ((data[1] as u16) >> 4))
     }
 
-    pub fn read_adc_gt_alarm_register(slot: u8, ecp5: &mut ECP5) -> u16 {
+    pub fn read_adc_gt_alarm_register(slot: u16, ecp5: &mut ECP5) -> u16 {
         let mut data: [u8; 2] = [0; 2];
         let address = [READ | ADC_GT_AL];
         ecp5.read_spi(slot, &address, &mut data);
@@ -170,7 +170,7 @@ impl Max1329 {
 
 
 
-    pub fn set_adc_gt_alarm_register(slot: u8,
+    pub fn set_adc_gt_alarm_register(slot: u16,
                                      ecp5: &mut ECP5,
                                      gtam: adc::AlarmMode,
                                      gtac: u8,
@@ -181,7 +181,7 @@ impl Max1329 {
         ecp5.write_spi(slot, &data);
     }
 
-    pub fn set_adc_lt_alarm_register(slot: u8,
+    pub fn set_adc_lt_alarm_register(slot: u16,
                                      ecp5: &mut ECP5,
                                      ltam: adc::AlarmMode,
                                      ltac: u8,
@@ -193,7 +193,7 @@ impl Max1329 {
     }
 
 
-    pub fn set_dac_control(slot: u8,
+    pub fn set_dac_control(slot: u16,
                            ecp5: &mut ECP5,
                            dapd: dac::PowerDownConf,
                            dbpd: dac::PowerDownConf,
@@ -223,14 +223,14 @@ impl Max1329 {
         ecp5.write_spi(self.slot, &data);
     }
 
-    pub fn set_daca_value(slot: u8,
+    pub fn set_daca_value(slot: u16,
                           ecp5: &mut ECP5,
                           value: u16){
         let data: [u8; 2] = [(0b0100 << 4) | ((value >> 8) as u8), (value & 0xFF) as u8];
         ecp5.write_spi(slot, &data);
     }
 
-    pub fn read_daca_value(slot: u8,
+    pub fn read_daca_value(slot: u16,
                            ecp5: &mut ECP5) -> u16 {
         let mut data = [0b0110_0000, 0x00];
         ecp5.write_spi(slot, &data);
@@ -238,11 +238,11 @@ impl Max1329 {
         while data[1] != 1 {
             ecp5.read_from_ecp5(address, &mut data).unwrap();
         }
-        ecp5.read_from_ecp5(ecp5::OFFSET_TO_SLOT * slot + ecp5::OFFSET_TO_SPI + ecp5::SPI::DATA, &mut data);
+        ecp5.read_from_ecp5(ecp5::OFFSET_TO_SLOT * slot + ecp5::OFFSET_TO_SPI + ecp5::SPI::DATA, &mut data).unwrap();
         (((data[0] as u16) << 8)) | (data[1] as u16)
     }
 
-    pub fn read_dacb_value(slot: u8,
+    pub fn read_dacb_value(slot: u16,
                            ecp5: &mut ECP5) -> u16 {
         let mut data = [0b0111_0000, 0x00];
         ecp5.write_spi(slot, &data);
@@ -250,11 +250,11 @@ impl Max1329 {
         while data[1] != 1 {
             ecp5.read_from_ecp5(address, &mut data).unwrap();
         }
-        ecp5.read_from_ecp5(ecp5::OFFSET_TO_SLOT * slot + ecp5::OFFSET_TO_SPI + ecp5::SPI::DATA, &mut data);
+        ecp5.read_from_ecp5(ecp5::OFFSET_TO_SLOT * slot + ecp5::OFFSET_TO_SPI + ecp5::SPI::DATA, &mut data).unwrap();
         (((data[0] as u16) << 8)) | (data[1] as u16)
     }
 
-    pub fn set_dacb_value(slot: u8,
+    pub fn set_dacb_value(slot: u16,
                       ecp5: &mut ECP5,
                       value: u16){
     let data: [u8; 2] = [(0b0101 << 4) | ((value >> 8) as u8), (value & 0xFF) as u8];
@@ -297,12 +297,12 @@ impl Max1329 {
         ecp5.write_spi(self.slot, &data);
     }
 
-    pub fn set_clock_control_register(slot : u8, ecp5: &mut ECP5, register_value : u8){
+    pub fn set_clock_control_register(slot : u16, ecp5: &mut ECP5, register_value : u8){
         let data : [u8; 2] = [CLOCK_CONTROL | WRITE, register_value];
         ecp5.write_spi(slot, &data);
     }
 
-    pub fn read_clock_control_register(slot : u8, ecp5: &mut ECP5) -> u8 {
+    pub fn read_clock_control_register(slot : u16, ecp5: &mut ECP5) -> u8 {
         let mut data: [u8; 1] = [0];
 
         //log::info!("to write: {}", CLOCK_CONTROL | READ);
@@ -310,17 +310,17 @@ impl Max1329 {
         data[0]
     }
 
-    pub fn set_cpvm_control_register(slot : u8, ecp5: &mut ECP5, register_value : u8){
+    pub fn set_cpvm_control_register(slot : u16, ecp5: &mut ECP5, register_value : u8){
         let data : [u8; 2] = [CP_VM_CONTROL | WRITE, register_value];
         ecp5.write_spi(slot, &data);
     }
 
-    pub fn reset_device(slot : u8, ecp5: &mut ECP5){
+    pub fn reset_device(slot : u16, ecp5: &mut ECP5){
         let data : [u8; 2] = [RESET | WRITE, 0x00];
         ecp5.write_spi(slot, &data);
     }
 
-    pub fn set_interrupt_mask_register(slot: u8,
+    pub fn set_interrupt_mask_register(slot: u16,
                                        ecp5: &mut ECP5,
                                        register_value: u32){
         let mut data: [u8; 4] = [0; 4];
@@ -333,7 +333,7 @@ impl Max1329 {
         ecp5.write_spi(slot, &data);
     }
 
-    pub fn read_interrrupt_mask_register(slot: u8,
+    pub fn read_interrrupt_mask_register(slot: u16,
                                          ecp5: &mut ECP5,
     ) -> [u8; 3] {
         let mut data: [u8; 3] = [0; 3];
@@ -342,7 +342,7 @@ impl Max1329 {
         data
     }
 
-    pub fn read_status_register(slot : u8,
+    pub fn read_status_register(slot : u16,
                                 ecp5: &mut ECP5,) -> u32 {
         let mut data: [u8; 3] = [0; 3];
         let address = [STATUS | READ];
@@ -353,7 +353,7 @@ impl Max1329 {
         (data[2] as u32)
     }
 
-    pub fn read_apio_setup_register(slot: u8,
+    pub fn read_apio_setup_register(slot: u16,
                                      ecp5: &mut ECP5) -> u8 {
         let mut data : [u8; 1] = [0; 1];
         let address = [APIO_SETUP | READ];
@@ -362,14 +362,14 @@ impl Max1329 {
         data[0]
     }
 
-    pub fn set_apio_control_register(slot : u8,
+    pub fn set_apio_control_register(slot : u16,
                                      ecp5: &mut ECP5,
                                      register_value: u8){
         let data : [u8; 2] = [APIO_CONTROL | WRITE, register_value];
         ecp5.write_spi(slot, &data);
     }
 
-    pub fn read_apio_control_register(slot : u8,
+    pub fn read_apio_control_register(slot : u16,
                                      ecp5: &mut ECP5) -> u8 {
         let mut data : [u8; 1] = [0; 1];
         let address = [APIO_CONTROL | READ];
@@ -378,14 +378,14 @@ impl Max1329 {
         data[0]
     }
 
-    pub fn set_dpio_control_register(slot : u8,
+    pub fn set_dpio_control_register(slot : u16,
                                      ecp5: &mut ECP5,
                                      register_value: u16){
         let data :[u8; 3] = [DPIO_CONTROL | WRITE, (register_value >> 8) as u8, (register_value & 0xFF) as u8];
         ecp5.write_spi(slot, &data);
     }
 
-    pub fn read_dpio_control_register(slot : u8,
+    pub fn read_dpio_control_register(slot : u16,
                                      ecp5: &mut ECP5) -> [u8; 2]{
         let mut data :[u8; 2] = [0; 2];
         let address = [DPIO_CONTROL | READ];
@@ -393,14 +393,14 @@ impl Max1329 {
         data
     }
 
-    pub fn set_dpio_setup_register(slot : u8,
+    pub fn set_dpio_setup_register(slot : u16,
                                      ecp5: &mut ECP5,
                                      register_value: u8){
         let data :[u8; 2] = [DPIO_SETUP | WRITE, register_value];
         ecp5.write_spi(slot, &data);
     }
 
-    pub fn read_dpio_setup_register(slot : u8,
+    pub fn read_dpio_setup_register(slot : u16,
                                      ecp5: &mut ECP5) -> u8 {
         let mut data :[u8; 1] = [0];
         let address = [DPIO_SETUP| READ];

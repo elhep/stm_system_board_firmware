@@ -89,7 +89,7 @@ struct Calibration {
 }
 
 pub struct MaxController {
-    slot: u8,
+    slot: u16,
     timer: Timer,
     channel_settings: [ChannelSettings; 2],
     calibration: [Calibration; 2],
@@ -101,7 +101,7 @@ impl MaxController {
     const DAC_MAX: f32 = 0b111111111111 as f32;
     const UPDATE_PERIOD: u32 = 100;
 
-    pub fn new(slot: u8) -> MaxController {
+    pub fn new(slot: u16) -> MaxController {
         MaxController {
             slot,
             timer: Timer::new(),

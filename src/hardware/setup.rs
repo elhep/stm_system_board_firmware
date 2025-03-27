@@ -112,7 +112,7 @@ pub struct BoardDevices {
     pub mon_bus: MonBus,
     pub therm_i2c: hal::i2c::I2c<hal::stm32::I2C1>,
     pub slots_bus: SlotsBus,
-    pub mlvds_dir_spi: hal::spi::Spi<hal::device::SPI3, hal::spi::Enabled, u16>,
+    pub mlvds_dir_spi: hal::spi::Spi<hal::device::SPI4, hal::spi::Enabled, u16>,
 }
 
 pub struct MonBus {
@@ -332,9 +332,9 @@ pub fn setup(
         //let di41 = gpiob.pb4.into_floating_input();
         //let di50 = gpioc.pc10.into_pull_down_input();
         //let di51 = gpioa.pa4.into_floating_input();
-        let di60 = gpioe.pe2.into_pull_down_input();
+        // let di60 = gpioe.pe2.into_pull_down_input();
         //let di61 = gpioe.pe4.into_floating_input();
-        let di70 = gpioe.pe5.into_pull_down_input();
+        // let di70 = gpioe.pe5.into_pull_down_input();
         //let di71 = gpioe.pe6.into_floating_input();
 //
 //        di01.make_interrupt_source(&mut syscfg);
@@ -342,8 +342,8 @@ pub fn setup(
 //        di01.enable_interrupt(&mut exti);
 
         //(
-            (di00, di10, di20, di60, di70)//, di30 di40 di50 deleted as it is used as SPI3 to MLVDS dir TODO add new  lane
-        //    (di01, di11, di21, di31, di41, di51, di61, di71)
+            (di00, di10, di20)//, di30 di40 di50 deleted as it is used as SPI3 to MLVDS dir TODO add new  lane
+        //    (di01, di11, di21, di31, di41, di51, di61, di71, di60, di70)
         //)
     };
 
@@ -359,10 +359,10 @@ pub fn setup(
 //    };
 
     // Check if STM SYS BOARD is in system slot.
-    let sysen = gpiob.pb15.into_floating_input();
-    if sysen.is_high().unwrap(){
-        panic!("STM SYS BOARD on peripheral slot!");
-    }
+//     let sysen = gpiob.pb15.into_floating_input();
+//     if sysen.is_high().unwrap(){
+//         panic!("STM SYS BOARD on peripheral slot!");
+//     }
 
     let mon_bus = {
         let sda = gpiof.pf0.into_alternate_af4().set_open_drain();
@@ -441,7 +441,7 @@ pub fn setup(
     servmod.6.set_high().unwrap();
     servmod.7.set_high().unwrap();
 
-   // let mac_addr = smoltcp::wire::EthernetAddress([0x00, 0x0b, 0x00, 0x00, 0x00, 0x00]);
+//    let mac_addr = smoltcp::wire::EthernetAddress([0x00, 0x0b, 0x00, 0x00, 0x00, 0x00]);
    let mac_addr = smoltcp::wire::EthernetAddress(eeprom::read_eui48(
        &mut therm_i2c,
        &mut delay,
@@ -450,18 +450,18 @@ pub fn setup(
 
     let mlvds_dir_spi = {
         let spi_pins = {
-                let clk = gpioc.pc10
-                    .into_alternate_af6();
-                let miso = gpiob.pb4
-                    .into_alternate_af6();
-                let mosi = gpiob.pb2
-                    .into_alternate_af7();
-                let cs = gpioa.pa4
-                    .into_alternate_af6();
+                let clk = gpioe.pe2
+                    .into_alternate_af5();
+                let miso = gpioe.pe5
+                    .into_alternate_af5();
+                let mosi = gpioe.pe6
+                    .into_alternate_af5();
+                let cs = gpioe.pe4
+                    .into_alternate_af5();
                 (clk, miso, mosi, cs)
         };
 
-        device.SPI3.spi(
+        device.SPI4.spi(
             spi_pins,
             hal::spi::Config::new(hal::spi::MODE_0)
                 .hardware_cs(hal::spi::HardwareCS {
@@ -470,7 +470,7 @@ pub fn setup(
                     polarity: hal::spi::Polarity::IdleHigh,
                 }),
             1.mhz(),
-            ccdr.peripheral.SPI3,
+            ccdr.peripheral.SPI4,
             &ccdr.clocks,
          )
     };

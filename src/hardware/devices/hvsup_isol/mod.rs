@@ -146,7 +146,7 @@ pub struct HvSupIsol {
 
 impl HvSupIsol {
     pub fn new(
-        slot_number: u8,
+        slot_number: u16,
         bus: BusReference,
         a_variant: OutputVariant,
         b_variant: OutputVariant,

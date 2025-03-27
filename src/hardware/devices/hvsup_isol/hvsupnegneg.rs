@@ -9,7 +9,7 @@ pub type Telemetry = super::Telemetry;
 pub struct HvSupNegNeg(HvSupIsol);
 
 impl HvSupNegNeg {
-    pub fn new(slot_number: u8, bus: BusReference) -> HvSupNegNeg {
+    pub fn new(slot_number: u16, bus: BusReference) -> HvSupNegNeg {
         HvSupNegNeg(HvSupIsol::new(
             slot_number,
             bus,

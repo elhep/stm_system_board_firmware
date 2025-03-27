@@ -71,4 +71,7 @@ where
     }
 
     fn check_interrupt(&mut self, _ecp5: &mut ECP5){}
+    fn mlvds_outputs(&mut self) -> u8 {
+        0b0000_0000 // not used - all inputs
+    }
 }

@@ -9,7 +9,7 @@ pub struct SiLPA<U>
 where
     U: Variants,
 {
-    slot: u8,
+    slot: u16,
     pub settings: U::VariantSettings,
     pub telemetry: U::VariantTelemetryBuffer,
 }
@@ -19,7 +19,7 @@ where
     U: Variants,
 {
     pub fn new(
-        slot_number : u8,
+        slot_number : u16,
     ) -> Self
     {
         Self{

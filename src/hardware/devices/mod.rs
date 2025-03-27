@@ -3,9 +3,9 @@ pub mod max1329;
 // pub mod nucleo_tester;
 pub mod hvsup_isol;
 
-use crate::hardware::setup::BusReference;
 use miniconf::Miniconf;
 use serde::Serialize;
+use crate::hardware::setup::BusReference;
 
 // TODO finish trait
 

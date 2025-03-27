@@ -1,5 +1,6 @@
 use core::ptr::addr_of;
 use embedded_hal::digital::v2::InputPin;
+use stm32h7xx_hal::pac::cec::ier::ARBLSTIE_R;
 pub use stm32h7xx_hal as hal;
 use crate::hardware::ECP5InterfaceReady;
 use heapless::String;
@@ -7,38 +8,38 @@ use embedded_hal::blocking::delay::DelayMs;
 //use crate::hardware::ecp5::SPI::_END;
 
 //number of slots in the design
-pub const SLOTS_NUM: u8 = 2;
-pub const OFFSET_TO_SPI: u8 = 6;
-pub const OFFSET_TO_SLOT: u8 = 20;
+pub const SLOTS_NUM: u16 = 2;
+pub const OFFSET_TO_SPI: u16 = 6;
+pub const OFFSET_TO_SLOT: u16 = 20;
 //
 
 
 pub mod SLOT{     // SLOT registers map (OFFSET_TO_SLOT * slot_nb + slot_reg)
-    pub const OUTPUT:  u8 = 0;
-    pub const INPUT:   u8 = 1;
-    pub const OE:      u8 = 2;
-    pub const INT:     u8 = 3;
-    pub const INT_MSK: u8 = 4;
-    pub const INT_CL:  u8 = 5;
-    pub const _END  :  u8 = 6;
+    pub const OUTPUT:  u16 = 0;
+    pub const INPUT:   u16 = 1;
+    pub const OE:      u16 = 2;
+    pub const INT:     u16 = 3;
+    pub const INT_MSK: u16 = 4;
+    pub const INT_CL:  u16 = 5;
+    pub const _END  :  u16 = 6;
 }
 
 pub mod SPI{        // SPI Register map (OFFSET_TO_SLOT * slot_nb + OFFSET_TO_SPI + spi_reg)
-    pub const DATA:    u8 = 0;
-    pub const LENGTH:  u8 = 1;
-    pub const CS:      u8 = 2;
-    pub const CS_POL:  u8 = 3;
-    pub const DIV:     u8 = 4;
-    pub const OFFLINE: u8 = 5;
-    pub const CLK_POL: u8 = 6;
-    pub const CLK_PHA: u8 = 7;
-    pub const LSB_FST: u8 = 8;
-    pub const HALF_DUP: u8 = 9;
-    pub const END:      u8 = 10;
-    pub const READABLE: u8 = 11;
-    pub const WRITABLE: u8 = 12;
-    pub const IDLE:     u8 = 13;
-    pub const _END  :  u8 = 14;
+    pub const DATA:    u16 = 0;
+    pub const LENGTH:  u16 = 1;
+    pub const CS:      u16 = 2;
+    pub const CS_POL:  u16 = 3;
+    pub const DIV:     u16 = 4;
+    pub const OFFLINE: u16 = 5;
+    pub const CLK_POL: u16 = 6;
+    pub const CLK_PHA: u16 = 7;
+    pub const LSB_FST: u16 = 8;
+    pub const HALF_DUP: u16 = 9;
+    pub const END:      u16 = 10;
+    pub const READABLE: u16 = 11;
+    pub const WRITABLE: u16 = 12;
+    pub const IDLE:     u16 = 13;
+    pub const _END  :  u16 = 14;
 }
 
 pub struct ECP5{
@@ -61,48 +62,59 @@ impl ECP5 {
     pub fn init(&self) {
         // TODO Init QSPI: test version: only instruction and data phase with dynamic data length
     }
-    fn get_device_reg_addr(&self, slot_number: u8) -> u8 {
+    fn get_device_reg_addr(&self, slot_number: u16) -> u16 {
         slot_number * 1  //TODO check value with final gateware version
     }
 
+    pub fn write_ext_to_ecp5(&mut self,
+                address: u16,
+                data: &[u8]
+    ) -> Result<(), hal::xspi::QspiError> {
+        while (self.qspi.is_busy() != Ok(())){
+            log::info!("WRITE ECP5: BUSY");
+        }
+        self.qspi.write_extended(stm32h7xx_hal::xspi::QspiWord::None,
+                    stm32h7xx_hal::xspi::QspiWord::U16(address),
+                    stm32h7xx_hal::xspi::QspiWord::None,
+                    data
+                    )
+    }
+
     pub fn write_to_ecp5(&mut self,
-                         reg_addr : u8,
+                         reg_addr : u16,
                          data: &[u8]
     ) -> Result<(), hal::xspi::QspiError> {
-        while (self.qspi.is_busy() != Ok(())){
-            log::info!("WRITE ECP5: BUSY");
-        }
-        self.qspi.write(reg_addr, data)
+        // while (self.qspi.is_busy() != Ok(())){
+        //     log::info!("WRITE ECP5: BUSY");
+        // }
+        // self.qspi.write(reg_addr, data)
+        self.write_ext_to_ecp5(reg_addr, data)
     }
 
-    pub fn write_to_ecp5_new(&mut self,
-                            reg_addr : u16,
-                            data: &[u8]
-    ) -> Result<(), hal::xspi::QspiError> {
-        while (self.qspi.is_busy() != Ok(())){
-            log::info!("WRITE ECP5: BUSY");
-        }
-        self.qspi.write_extended(stm32h7xx_hal::xspi::QspiWord::None, stm32h7xx_hal::xspi::QspiWord::U16(reg_addr), stm32h7xx_hal::xspi::QspiWord::None, data)
-    }
-
-    pub fn read_to_ecp5_new(&mut self,
-                            reg_addr : u16,
-                            data: &mut [u8]
-    ) -> Result<(), hal::xspi::QspiError> {
-        while (self.qspi.is_busy() != Ok(())){
-            log::info!("WRITE ECP5: BUSY");
-        }
-        self.qspi.read_extended(stm32h7xx_hal::xspi::QspiWord::None, stm32h7xx_hal::xspi::QspiWord::U16((1 << 15) | reg_addr), stm32h7xx_hal::xspi::QspiWord::None, 5, data)
-    }
-
-    pub fn read_from_ecp5(&mut self,
-                         reg_addr : u8,
-                         data: &mut [u8]
+    pub fn read_ext_from_ecp5(&mut self,
+                address: u16,
+                data: &mut [u8]
     ) -> Result<(), hal::xspi::QspiError> {
         while (self.qspi.is_busy() != Ok(())){
             log::info!("READ ECP5: BUSY");
         }
-        self.qspi.read((1 << 7) | reg_addr, data)
+        self.qspi.read_extended(stm32h7xx_hal::xspi::QspiWord::None,
+                    stm32h7xx_hal::xspi::QspiWord::U16((1 << 15) | address),
+                    stm32h7xx_hal::xspi::QspiWord::None,
+                    5,
+                    data
+                    )
+    }
+
+    pub fn read_from_ecp5(&mut self,
+                         reg_addr : u16,
+                         data: &mut [u8]
+    ) -> Result<(), hal::xspi::QspiError> {
+        // while (self.qspi.is_busy() != Ok(())){
+        //     log::info!("READ ECP5: BUSY");
+        // }
+        // self.qspi.read((1 << 7) | reg_addr, data)
+        self.read_ext_from_ecp5(reg_addr, data)
     }
 
 
@@ -115,7 +127,7 @@ impl ECP5 {
     // }
 
     // TODO Check ECP5 active polarization
-    fn interface_is_ready(&mut self, slot_number: u8) -> bool {
+    fn interface_is_ready(&mut self, slot_number: u16) -> bool {
         match slot_number {
             0 => self.interface_ready.0.is_high().unwrap(),
             1 => self.interface_ready.1.is_high().unwrap(),
@@ -123,8 +135,8 @@ impl ECP5 {
             //3 => self.interface_ready.3.is_high().unwrap(),
             //4 => self.interface_ready.4.is_high().unwrap(),  //TODO uncomment with new pin
             //5 => self.interface_ready.3.is_high().unwrap(),
-            6 => self.interface_ready.3.is_high().unwrap(),
-            7 => self.interface_ready.4.is_high().unwrap(),
+            // 6 => self.interface_ready.3.is_high().unwrap(),
+            // 7 => self.interface_ready.4.is_high().unwrap(),
             _ => panic!("Slot number >= 8")
         }
     }
@@ -147,13 +159,13 @@ impl ECP5 {
     //     //TODO wrtie proper write_to_ecp5
     // }
 
-    pub fn set_spi_cs_pol(&mut self, slot: u8, pol: u8){
+    pub fn set_spi_cs_pol(&mut self, slot: u16, pol: u8){
         let offset = slot * OFFSET_TO_SLOT + OFFSET_TO_SPI;
         self.write_to_ecp5(offset + SPI::CS_POL, &mut [0x00, pol]).unwrap();
 
     }
 
-    fn spi_machine_write(&mut self, slot_number : u8, data: &[u8; 2]){
+    fn spi_machine_write(&mut self, slot_number : u16, data: &[u8; 2]){
         let mut array : [u8; 2] = [0x00, 0x00];
 
         //wait for idle
@@ -166,7 +178,7 @@ impl ECP5 {
         //log::info!("SPI_MACHINE_WRITE zakończono");
     }
 
-    fn spi_machine_read(&mut self, slot_number : u8, data: &mut[u8; 2], end : bool){
+    fn spi_machine_read(&mut self, slot_number : u16, data: &mut[u8; 2], end : bool){
         let mut array : [u8; 2] = [0x00, 0x00];
         let mut address = 0;
         if end {
@@ -184,7 +196,7 @@ impl ECP5 {
     }
 
     pub fn write_spi(&mut self,
-                     slot_number: u8,
+                     slot_number: u16,
                      data: &[u8]){
         let mut pointer = 0;
         let mut idle = [0x00, 0x00];
@@ -225,51 +237,51 @@ impl ECP5 {
     }
 
     pub fn read_inputs(&mut self,
-                        slot_number: u8,
+                        slot_number: u16,
                         data: &mut [u8]){
-        self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INPUT, data);
+        self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INPUT, data).unwrap();
     }
 
     pub fn read_oe(&mut self,
-                    slot_number: u8,
+                    slot_number: u16,
                     data: &mut [u8]){
-        self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::OE, data);
+        self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::OE, data).unwrap();
     }
 
     pub fn write_oe(&mut self,
-                    slot_number: u8,
+                    slot_number: u16,
                     data: &[u8]){
-        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::OE, data);
+        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::OE, data).unwrap();
     }
 
     pub fn write_outputs(&mut self,
-                slot_number: u8,
+                slot_number: u16,
                 data: &[u8]){
-        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::OUTPUT, data);
+        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::OUTPUT, data).unwrap();
     }
 
     pub fn write_interrupts_mask(&mut self,
-                slot_number: u8,
+                slot_number: u16,
                 data: &[u8]){
-        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INT_MSK, data);
+        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INT_MSK, data).unwrap();
     }
 
     pub fn write_clear_interrupts(&mut self,
-                slot_number: u8,
+                slot_number: u16,
                 data: &[u8]) {
-        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INT_CL, data);
+        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INT_CL, data).unwrap();
     }
 
     pub fn read_interrupts_mask(&mut self,
-                    slot_number: u8,
+                    slot_number: u16,
                     data: &mut [u8]){
-        self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INT_MSK, data);
+        self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INT_MSK, data).unwrap();
     }
 
     pub fn read_interrupts(&mut self,
-                slot_number: u8,
+                slot_number: u16,
                 data: &mut [u8]){
-        self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INT, data);
+        self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::INT, data).unwrap();
     }
 
     // pub fn write_outputs(&mut self,
@@ -290,14 +302,14 @@ impl ECP5 {
     // }
 
     fn spi_last_bytes(&mut self,
-                     slot_number: u8,
+                     slot_number: u16,
                      data: &mut[u8;2]){
        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + OFFSET_TO_SPI + SPI::LENGTH, &[0x00, 0x0F]).unwrap();
        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + OFFSET_TO_SPI + SPI::END, &[0x00, 0x01]).unwrap();
     }
 
     fn check_spi_end(&mut self,
-                     slot_number : u8,
+                     slot_number : u16,
                      end_status: Option<bool>,
                      end_requested : bool) -> Option<bool>{
         //log::info!("CHECK_SPI_END start");
@@ -318,8 +330,77 @@ impl ECP5 {
         }
     }
 
+        //size of read >= size of write
+   pub fn read_spi_parallel_write(&mut self,
+                    slot_number: u16,
+                    write: &[u8],
+                    read: &mut [u8]) {
+        let mut w_pointer = 0;
+        let mut r_pointer = 0;
+        let mut end : Option<bool> = None;
+        let mut array : [u8; 2] = [0; 2];
+
+               // Write data:
+        while write.len() != w_pointer {
+            // 2 or more bytes to send and read
+            if (write.len() - w_pointer >= 2){
+                self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + OFFSET_TO_SPI + SPI::LENGTH, &[0x00, 0x0F]).unwrap();
+                //log::info!("READ SPI więcej niż 2 bajty do wysłania");
+                end = self.check_spi_end( slot_number, end, false);
+                self.spi_machine_write(slot_number, &[write[w_pointer], write[w_pointer + 1]]);
+                self.spi_machine_read(slot_number, &mut array, end.unwrap());
+                read[r_pointer] = array[0];
+                read[r_pointer+1] = array[1];
+                w_pointer += 2;
+                r_pointer += 2;
+            }
+            //Single byte + first read byte
+            else if (write.len() - w_pointer == 1){
+                self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + OFFSET_TO_SPI + SPI::LENGTH, &[0x00, 0x07]).unwrap();
+                //log::info!("READ SPI 1 bajt do wysłania");
+                //if single byte read - end
+                if read.len() - r_pointer == 1 {
+                    //log::info!("READ SPI ustawiamy END na true");
+                    end = self.check_spi_end( slot_number, end, true);
+                } else {
+                    //log::info!("READ SPI ustawiamy END na false");
+                    end = self.check_spi_end( slot_number, end, false);
+                }
+                //log::info!("READ SPI: Wejście do spi_machine_write");
+                self.spi_machine_write(slot_number, &[write[w_pointer], 0x00]); //TODO verify 0x00
+                self.spi_machine_read(slot_number, &mut array, end.unwrap());
+                read[r_pointer] = array[1];
+                w_pointer += 1;
+                r_pointer += 1;
+            }
+        }
+               // Read data:
+       while read.len() != r_pointer {
+        // More than 2 bytes
+        if (read.len() - r_pointer >= 2){
+            if read.len() - r_pointer == 2 {
+                end = self.check_spi_end( slot_number, end, true);
+            } else {
+                end = self.check_spi_end(slot_number, end, false);
+            }
+            self.spi_machine_write(slot_number, &[0x00, 0x00]);
+            self.spi_machine_read(slot_number, &mut array, end.unwrap());
+            read[r_pointer] = array[0];
+            read[r_pointer+1] = array[1];
+            r_pointer += 2;
+        } else { // 1 byte
+            end = self.check_spi_end( slot_number, end, true);
+            self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + OFFSET_TO_SPI + SPI::LENGTH, &[0x00, 0x07]).unwrap();
+            self.spi_machine_write(slot_number, &[0x00, 0x00]);
+            self.spi_machine_read(slot_number, &mut array, end.unwrap());
+            read[r_pointer] = array[1];
+            r_pointer += 1;
+        }
+    }
+    }
+
    pub fn read_spi(&mut self,
-                   slot_number: u8,
+                   slot_number: u16,
                    write: &[u8],
                    read: &mut [u8]) {
        let mut w_pointer = 0;
@@ -434,7 +515,7 @@ impl ECP5 {
         }
     }
 
-    fn print_reg(reg: u8) -> String<10>{
+    fn print_reg(reg: u16) -> String<10>{
         match reg {
             0 => String::from("OUTPUT    "),
             1 => String::from("INPUT     "),
@@ -446,7 +527,7 @@ impl ECP5 {
         }
     }
 
-    fn print_reg_spi(reg: u8) -> String<10>{
+    fn print_reg_spi(reg: u16) -> String<10>{
         match reg {
             0  => String::from("DATA      "),
             1  => String::from("LENGTH    "),
