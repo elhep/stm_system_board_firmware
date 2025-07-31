@@ -123,7 +123,7 @@ impl ECP5 {
 
     // // data = [device_reg_address, data0, data1 ... dataX]
     // pub fn write_to_device(&mut self,
-    //                        slot_number: u8,
+    //                        slot_number: u16,
     //                        data: &[u8]
     // ) -> Result<(), hal::xspi::QspiError> {
     //     self.write_to_ecp5(address_ecp5, data)
@@ -200,13 +200,13 @@ impl ECP5 {
         } else {
             address = OFFSET_TO_SLOT * slot_number + OFFSET_TO_SPI + SPI::READABLE;
         }
-        //log::info!("SPI_MACHINE_READ Oczekiwanie na {}", address);
+        // log::info!("SPI_MACHINE_READ Oczekiwanie na {}", address);
         while array[1] != 1 {
             self.read_from_ecp5(address, &mut array).unwrap();
         }
         //log::info!("SPI_MACHINE_READ Jest status - odczytujemy wiadomość");
         self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + OFFSET_TO_SPI + SPI::DATA, data).unwrap();
-        //log::info!("SPI_MACHINE_READ Otrzymane wartości {} {}", data[0], data[1]);
+        // log::info!("SPI_MACHINE_READ Otrzymane wartości {} {}", data[0], data[1]);
     }
 
     pub fn write_spi(&mut self,
@@ -305,7 +305,7 @@ impl ECP5 {
     }
 
     // pub fn write_outputs(&mut self,
-    //                       slot_number: u8,
+    //                       slot_number: u16,
     //                       value: u8){
     //     let mut io : u16 = 0;
     //     for i in 0..8{
@@ -336,9 +336,10 @@ impl ECP5 {
         match end_status {
             Some(x) => {if x != end_requested {
                     self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + OFFSET_TO_SPI + SPI::END, &[0x00, end_requested as u8]).unwrap();
-                } else {
-                    log::info!("END bez zmian!"); //TODO do usunięcia
-                }
+                } 
+                // else {
+                    // log::info!("END bez zmian!"); //TODO do usunięcia
+                // }
                 Some(end_requested)
             },
 
@@ -431,7 +432,7 @@ impl ECP5 {
        let mut r_pointer = 0;
        let mut end : Option<bool> = None;
        let mut array : [u8; 2] = [0; 2];
-       //log::info!("READ SPI START");
+    //    log::info!("READ SPI START");
        // signle transfer: 16 bits:
        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + OFFSET_TO_SPI + SPI::LENGTH, &[0x00, 0x0F]).unwrap();
        //log::info!("READ SPI 2 bytes transfer SET");

@@ -8,6 +8,7 @@
                                                         hvsupnegneg::{self, HvSupNegNeg},
                                                         hvsupposneg::{self, HvSupPosNeg},
                                                         hvsupnegpos::{self, HvSupNegPos},};
+ use crate::hardware::devices::Magnetometer::mmc5983ma::{self, Mmc5983ma};
  use crate::hardware::devices::boards::EmptySlot;
  use crate::hardware::devices::boards::magneto::{self,Magneto};
  use crate::hardware::devices::boards::templogger::{TempLogger, self};
@@ -89,6 +90,11 @@
            HvSupNegNeg
       }
    };
+   (Mmc5983ma) => {
+        paste::paste! {
+            Mmc5983ma
+    }
+};
     (Magneto) => {
         paste::paste!{
             Magneto
@@ -192,6 +198,6 @@
  ///     - SilpaDefault - work in progress
 
 devices_list!(
-    EmptySlot,EmptySlot,EmptySlot,EmptySlot,TempLogger,EmptySlot,EmptySlot,EmptySlot
+    Mmc5983ma,EmptySlot,EmptySlot,EmptySlot,EmptySlot,EmptySlot,EmptySlot,EmptySlot
 );
 

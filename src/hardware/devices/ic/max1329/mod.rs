@@ -85,7 +85,7 @@ impl Max1329 {
         }
     }
 
-    // pub fn setup_spi_cs_pol(slot: u8, ecp: &mut ECP5, pol: u8){
+    // pub fn setup_spi_cs_pol(slot: u16, ecp: &mut ECP5, pol: u8){
     //     let offset = slot * ecp5::OFFSET_TO_SLOT + ecp5::OFFSET_TO_SPI;
     //     ecp.write_to_ecp5(offset + ecp5::SPI::CS_POL, &mut [0x00, pol]).unwrap();
     //
