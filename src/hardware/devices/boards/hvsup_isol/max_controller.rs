@@ -362,7 +362,7 @@ impl MaxController {
     }
 
     fn switch_cs(&self, channel: Channel, ecp5: &mut ECP5) {
-        let index = channel as u8;
+        let index = channel as u16;
         self.wait_for_spi(ecp5);
         ecp5.set_spi_cs_pol(self.slot, index);
     }

@@ -9,6 +9,8 @@
                                                         hvsupposneg::{self, HvSupPosNeg},
                                                         hvsupnegpos::{self, HvSupNegPos},};
  use crate::hardware::devices::boards::EmptySlot;
+ use crate::hardware::devices::boards::magneto::{self,Magneto};
+ use crate::hardware::devices::boards::templogger::{TempLogger, self};
 //  use crate::hardware::devices::nucleo_tester::{Nucleo};
  use crate::hardware::hal;
 
@@ -87,7 +89,19 @@
            HvSupNegNeg
       }
    };
+    (Magneto) => {
+        paste::paste!{
+            Magneto
+        }
+    };
+    (TempLogger) => {
+        paste::paste!{
+            TempLogger
+        }
+    }
  }
+
+
 
  macro_rules! devices_list {
      ($first:ident, $second:ident, $third:ident, $fourth:ident, $fifth:ident, $sixth:ident,
@@ -178,6 +192,6 @@
  ///     - SilpaDefault - work in progress
 
 devices_list!(
-    EmptySlot,EmptySlot,EmptySlot,EmptySlot,EmptySlot,EmptySlot,EmptySlot,EmptySlot
+    EmptySlot,EmptySlot,EmptySlot,EmptySlot,TempLogger,EmptySlot,EmptySlot,EmptySlot
 );
 

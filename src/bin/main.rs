@@ -101,7 +101,8 @@ mod app {
             env!("CARGO_BIN_NAME"),
             stm_sys_board.net.mac_address,
             option_env!("BROKER")
-                .unwrap_or("192.168.0.101")
+                .unwrap_or("192.168.95.169")
+                // .unwrap_or("172.17.32.126")
                 .parse()
                 .unwrap(),
             Settings::default(),
@@ -118,6 +119,113 @@ mod app {
 
         *c.local.bus_manager = Some(BusManager::new(stm_sys_board.slots_bus));
         let bus_manager = c.local.bus_manager.as_ref().unwrap();
+        let mut bus = bus_manager.acquire_bus();
+        bus.lock(|bus|{
+            bus.ecp5.write_to_ecp5(0, &[0xab, 0xcd]).unwrap();
+            let mut array = [0, 0];
+            bus.ecp5.read_from_ecp5(0, &mut array).unwrap();
+            log::info!("0: {}", array[0]);
+            log::info!("0: {}", array[1]);
+            bus.ecp5.read_from_ecp5(160, &mut array).unwrap();
+            log::info!("160: {}", array[0]);
+            log::info!("160: {}", array[1]);
+            bus.ecp5.read_from_ecp5(161, &mut array).unwrap();
+            log::info!("161: {}", array[0]);
+            log::info!("161: {}", array[1]);
+
+            
+
+
+            // let my_slot = 4;
+
+            // use embedded_hal::blocking::delay::DelayMs;
+            // let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
+                // 400000000,
+            // ))  ;
+            
+            // bus.ecp5.write_outputs(self.slot_number, &[0b0000_0000, 0b1100_1111]);
+// 
+            // bus.ecp5.write_outputs(self.slot_number, &[0b0000_0000, 0b1110_1111]);
+            // use crate::hardware::ecp5::{OFFSET_TO_SLOT, OFFSET_TO_SPI, SPI};
+
+            // bus.ecp5.write_oe(my_slot, &[0b0000_0000, 0b1111_1111]);
+            // bus.ecp5.write_to_ecp5(OFFSET_TO_SLOT * my_slot + OFFSET_TO_SPI + SPI::LENGTH, &[0x00, 0x07]).unwrap();
+            // bus.ecp5.write_to_ecp5(OFFSET_TO_SLOT * my_slot + OFFSET_TO_SPI + SPI::CS_POL, &mut [0x00, 0x01]).unwrap(); // TODO BUG on PCB, polarity of P and N signal switched
+            // bus.ecp5.write_to_ecp5(OFFSET_TO_SLOT * my_slot + OFFSET_TO_SPI + SPI::CS, &mut [0x00, 0x01]).unwrap();
+            // bus.ecp5.write_to_ecp5(OFFSET_TO_SLOT * my_slot + OFFSET_TO_SPI + SPI::DIV, &mut [0x00, 0xA0]).unwrap();
+            // bus.ecp5.write_to_ecp5(OFFSET_TO_SLOT * my_slot + OFFSET_TO_SPI + SPI::OFFLINE, &mut [0x00, 0x00]).unwrap();
+            // bus.ecp5.write_to_ecp5(OFFSET_TO_SLOT * my_slot + OFFSET_TO_SPI + SPI::CLK_POL, &mut [0x00, 0x00]).unwrap();
+            // bus.ecp5.write_to_ecp5(OFFSET_TO_SLOT * my_slot + OFFSET_TO_SPI + SPI::CLK_PHA, &mut [0x00, 0x01]).unwrap();
+            // bus.ecp5.write_to_ecp5(OFFSET_TO_SLOT * my_slot + OFFSET_TO_SPI + SPI::LSB_FST, &mut [0x00, 0x00]).unwrap();
+            // bus.ecp5.write_to_ecp5(OFFSET_TO_SLOT * my_slot + OFFSET_TO_SPI + SPI::HALF_DUP, &mut [0x00, 0x00]).unwrap();
+            // for _i in 1..10000000  {
+                // let mut readout : [u8; 1] = [3];
+                // bus.ecp5.read_spi(my_slot, &[0x0], &mut readout);
+                // log::info!("readout F: {}", readout[0]);
+                // delay.delay_ms(1 as u32);
+                // let mut readout : [u8; 1] = [3];
+                // bus.ecp5.read_spi(my_slot, &[0x3], &mut readout);
+                // log::info!("readout F: {}", readout[0]);
+                // delay.delay_ms(2 as u32);
+
+
+                // bus.ecp5.write_outputs(my_slot, &[0b0000_0000, 0b1000_0000]);
+                // let mut readout : [u8; 1] = [3];
+                // bus.ecp5.read_spi(my_slot, &[0b01000001, 0xA], &mut readout);
+                // bus.ecp5.write_outputs(my_slot, &[0b0000_0000, 0b1010_0000]);
+                // log::info!("readout zeros: {}", readout[0]);
+                // delay.delay_ms(1000 as u32);
+// 
+                // bus.ecp5.write_outputs(my_slot, &[0b0000_0000, 0b1000_0000]);
+                // bus.ecp5.write_spi(my_slot, &[0b01000000, 0, 0xF0]);
+                // bus.ecp5.write_outputs(my_slot, &[0b0000_0000, 0b1010_0000]);
+                // log::info!("readout zeros: {}", readout[0]);
+                // delay.delay_ms(1000 as u32);
+
+            // }
+
+            //debug magneto 
+//                         let my_slot = 5;
+// // 
+//             use embedded_hal::blocking::delay::DelayMs;
+//             let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
+//                 400000000,
+//             ))  ;
+//             // 
+//             bus.ecp5.write_outputs(self.slot_number, &[0b0000_0000, 0b1100_1111]);
+// // 
+//             bus.ecp5.write_outputs(self.slot_number, &[0b0000_0000, 0b1110_1111]);
+
+            
+//             for _i in 1..10000000  {
+//                 delay.delay_ms(1000 as u32);
+//                 bus.ecp5.write_outputs(my_slot, &[0b0000_0000, 0b1000_0000]);
+//                 let mut readout : [u8; 1] = [3];
+//                 bus.ecp5.read_spi(my_slot, &[0b01000001, 0], &mut readout);
+//                 bus.ecp5.write_outputs(my_slot, &[0b0000_0000, 0b1010_0000]);
+//                 log::info!("readout F: {}", readout[0]);
+//                 delay.delay_ms(1000 as u32);
+
+//                 bus.ecp5.write_outputs(my_slot, &[0b0000_0000, 0b1000_0000]);
+//                 let mut readout : [u8; 1] = [3];
+//                 bus.ecp5.read_spi(my_slot, &[0b01000001, 0xA], &mut readout);
+//                 bus.ecp5.write_outputs(my_slot, &[0b0000_0000, 0b1010_0000]);
+//                 log::info!("readout zeros: {}", readout[0]);
+//                 delay.delay_ms(1000 as u32);
+
+//                 bus.ecp5.write_outputs(my_slot, &[0b0000_0000, 0b1000_0000]);
+//                 bus.ecp5.write_spi(my_slot, &[0b01000000, 0, 0xF0]);
+//                 bus.ecp5.write_outputs(my_slot, &[0b0000_0000, 0b1010_0000]);
+//                 log::info!("readout zeros: {}", readout[0]);
+//                 delay.delay_ms(1000 as u32);
+
+//             }
+
+            
+        });
+
+        // panic!("bo tak");
+
 
         let mut device0 = Device0Type::new(0, bus_manager.acquire_bus());
         let mut device1 = Device1Type::new(1, bus_manager.acquire_bus());
@@ -261,11 +369,15 @@ mod app {
         let mut data : [u8; 2] = [0; 2];
         c.local.i2c.write_read(0b1001000 as u8, &[0], &mut data).unwrap();
         let temp : u16 = ( (data[0] as u16) << 4) | ((data[1] as u16) >> 4);
-        log::info!("Temp: {}", (temp as f32) * 0.0625);
+        // log::info!("Temp: {}", (temp as f32) * 0.0625);
+        // let temp2 : f32 = (( (data[0] as u16) << 1) | ((data[1] as u16) >> 7)) as f32 *0.5;
+        // log::info!("Temp2: {}", temp2);
 
-        c.shared.network.lock(|net| net.telemetry.publish(DEVICE0_TELEMETRY_PREFIX, &temp));
+        let cel = (temp as f32) * 0.0625;
 
-        telemetry0::Monotonic::spawn_after((2 as u64).secs())
+        c.shared.network.lock(|net| net.telemetry.publish("sys_board", &cel));
+
+        telemetry_stm::Monotonic::spawn_after((2 as u64).secs())
             .unwrap();
     }
 

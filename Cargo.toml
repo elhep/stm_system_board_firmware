@@ -50,6 +50,7 @@ fugit = "0.3"
 rtt-logger = "0.2"
 systick-monotonic = "1.0"
 mono-clock = "0.1"
+micromath = "2.1.0"
 shared-bus = { version = "0.3.1", features = ["cortex-m"] }
 
 [dependencies.stm32h7xx-hal]

@@ -1,4 +1,6 @@
 pub mod hvsup_isol;
+pub mod magneto;
+pub mod templogger;
 
 use miniconf::Miniconf;
 use serde::Serialize;

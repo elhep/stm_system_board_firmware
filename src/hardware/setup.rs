@@ -132,6 +132,34 @@ pub struct SlotsBus {
     pub servmod: ServMod,
 }
 
+impl SlotsBus {
+    pub fn set_servmod(&mut self, slot_nb : u16) -> () {
+        self.clear_servmod();
+        match slot_nb {
+            0 => self.servmod.0.set_high().unwrap(),
+            1 => self.servmod.1.set_high().unwrap(),
+            2 => self.servmod.2.set_high().unwrap(),
+            3 => self.servmod.3.set_high().unwrap(),
+            4 => self.servmod.4.set_high().unwrap(),
+            5 => self.servmod.5.set_high().unwrap(),
+            6 => self.servmod.6.set_high().unwrap(),
+            7 => self.servmod.7.set_high().unwrap(),
+            _ => log::info!("incorrect slot!"),
+        }
+    }
+
+    pub fn clear_servmod(&mut self) -> () {
+        self.servmod.1.set_low().unwrap();
+        self.servmod.2.set_low().unwrap();
+        self.servmod.3.set_low().unwrap();
+        self.servmod.0.set_low().unwrap();
+        self.servmod.4.set_low().unwrap();
+        self.servmod.5.set_low().unwrap();
+        self.servmod.6.set_low().unwrap();
+        self.servmod.7.set_low().unwrap();
+    }
+}
+
 pub type CpcisI2C = hal::i2c::I2c<hal::stm32::I2C4>;
 pub type BusReference = BusProxy<'static, SlotsBus>;
 
