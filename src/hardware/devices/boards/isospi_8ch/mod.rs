@@ -182,13 +182,16 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
                 let mut result: u8;
                 // log::info!("Magnetometer: bus lock acquired");
                 self.magnetometers[i].reset(&mut bus.ecp5);
-                // delay.delay_ms(5 as u32);
+                delay.delay_ms(20 as u32);
                 result = self.magnetometers[i].read_product_id(&mut bus.ecp5);
                 log::info!("Magnetometer {}: Read product id: {:X}", i, result);
-                self.magnetometers[i].set_continuous_mode(&mut bus.ecp5, 10, true);
-                self.magnetometers[i].set_x_inhibit(&mut bus.ecp5, false);
-                self.magnetometers[i].set_y_inhibit(&mut bus.ecp5, false);
-                self.magnetometers[i].set_z_inhibit(&mut bus.ecp5, false);
+                if result == 0x30 {
+                    self.magnetometers[i].settings.active = true;                
+                    self.magnetometers[i].set_continuous_mode(&mut bus.ecp5, 10, true);
+                    self.magnetometers[i].set_x_inhibit(&mut bus.ecp5, false);
+                    self.magnetometers[i].set_y_inhibit(&mut bus.ecp5, false);
+                    self.magnetometers[i].set_z_inhibit(&mut bus.ecp5, false);
+                }
             });
         };
         true
@@ -201,18 +204,20 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
     fn telemetry(&mut self) -> (Telemetry, u16) {
         log::info!("Magnetometer: telemetry spawn");
         // let mut telemetry = Telemetry::default();
-        // for i in 0..sensor_count {
-        //     self.encode_cs(i as u8);
-            // self.bus.lock(|bus| {
-                // log::info!("Magnetometer {}: bus lock acquired", i);
-                
-                // self.telemetry.det_telemetry[i].temp = self.magnetometers[i].measure_temperature(&mut bus.ecp5);
-        //     let result = Mmc5983ma::read_m_field(self.slot, &mut bus.ecp5);
-        //     telemetry.x_field = result.0;
-        //     telemetry.y_field = result.1;
-        //     telemetry.z_field = result.2;
-        //     });
-        // }
+        for i in 0..sensor_count {
+            if self.magnetometers[i].settings.active {
+                self.encode_cs(i as u8);
+                self.bus.lock(|bus| {
+                    log::info!("Magnetometer {}: bus lock acquired", i);
+                    
+                    self.telemetry.det_telemetry[i].temp = self.magnetometers[i].measure_temperature(&mut bus.ecp5);
+                // let result = Mmc5983ma::read_m_field(self.slot, &mut bus.ecp5);
+                // telemetry.x_field = result.0;
+                // telemetry.y_field = result.1;
+                // telemetry.z_field = result.2;
+                });
+            }
+        }
         (self.telemetry, self.settings.telemetry_period)
     }
 

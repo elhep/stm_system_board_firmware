@@ -53,7 +53,7 @@ pub const Product_ID_1          :u8 = 0x2F;
 #[derive(Clone, Copy, Debug, Miniconf, PartialEq)]
 pub struct Settings {
     pub x_inhibit: bool,
-    // pub active : bool,
+    pub active : bool,
     // pub a   : f32,      //
 }
 
@@ -61,7 +61,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             x_inhibit: false,
-            // active: false,
+            active: false,
             // a: 3.9083e-3,
         }
     }
@@ -70,7 +70,7 @@ impl Default for Settings {
 #[derive(Clone, Copy)]
 pub struct Mmc5983ma {
     slot: u16,
-    settings: Settings,
+    pub settings: Settings,
 }
 
 impl Mmc5983ma {
@@ -215,13 +215,14 @@ impl Mmc5983ma {
     pub fn measure_temperature(&mut self, ecp5: &mut ECP5) -> f32 {
         let mut data: [u8;1] = [0];
         self.read_register(ecp5, Internal_control_0, &mut data);
+        log::info!("Magnetometer: Internal_control_0: 0x{:X}", data[0]);
         self.write_register(ecp5, Internal_control_0, data[0] | (1 << 1));
 
         data = [0];
 
         while (data[0] >> 1) & 1 != 1 {
-            // log::info!("Magnetometer: Wait for t meas done, status: {}", data[0]);
             self.read_register(ecp5, Status, &mut data);
+            log::info!("Magnetometer: Wait for t meas done, status: 0x{:X}", data[0]);
         }
 
         self.read_register(ecp5, Tout, &mut data);
