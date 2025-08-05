@@ -21,7 +21,7 @@ use crate::hardware::setup::BusReference;
 //     }
 // }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize, Default, Clone, Copy)]
 pub struct Telemetry {
     temp: f32,
     x_field: f32,
@@ -67,6 +67,7 @@ impl Default for Settings {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Mmc5983ma {
     slot: u16,
     settings: Settings,
@@ -82,13 +83,13 @@ impl Mmc5983ma {
         }
     }
 
-    pub fn set_register(&mut self, ecp5: &mut ECP5, reg_adr: u8, value: u8) {
-        let data : [u8; 2] = [reg_adr | READ, value];
+    pub fn write_register(&mut self, ecp5: &mut ECP5, reg_adr: u8, value: u8) {
+        let data : [u8; 2] = [reg_adr | WRITE, value];
         ecp5.write_spi(self.slot, &data);
     }
 
     pub fn read_register(&mut self, ecp5: &mut ECP5, reg_adr: u8, value: &mut [u8]){
-        let address = [reg_adr];
+        let address = [reg_adr | READ];
         ecp5.read_spi(self.slot, &address, value);
     }
 
@@ -111,36 +112,36 @@ impl Mmc5983ma {
     //     ecp5.write_spi(slot, &data);
     // }
 
-    // pub fn set_continuous_mode(slot: u16, ecp5: &mut ECP5, freq: u16, enable: bool) {
-    //     let freq_register: u8 = match freq {
-    //         0 => 0,
-    //         1 => 1,
-    //         10 => 2,
-    //         20 => 3,
-    //         50 => 4,
-    //         100 => 5,
-    //         200 => 6,
-    //         1000 => 7,
-    //         _ => 0
-    //     };
-    //     let mut data: [u8;1] = [0];
-    //     ecp5.read_spi(slot, &[Internal_control_2 | READ], &mut data);
-    //     // self.read_register(ecp5, )
+    pub fn set_continuous_mode(&mut self, ecp5: &mut ECP5, freq: u16, enable: bool) {
+        let freq_register: u8 = match freq {
+            0 => 0,
+            1 => 1,
+            10 => 2,
+            20 => 3,
+            50 => 4,
+            100 => 5,
+            200 => 6,
+            1000 => 7,
+            _ => 0
+        };
+        let mut data: [u8;1] = [0];
+        // ecp5.read_spi(self.slot, &[Internal_control_2 | READ], &mut data);
+        self.read_register(ecp5, Internal_control_2, &mut data);
 
-    //     log::info!("Magnetometer: set_continuous_mode: data before: {:b}", data[0]);
-    //     data[0] = (data[0] & !(1 << 3)) | ((enable as u8) << 3);
-    //     data[0] = (data[0] & !(0b111)) | freq_register;
-    //     log::info!("Magnetometer: set_continuous_mode: data after: {:b}", data[0]);
+        log::info!("Magnetometer: set_continuous_mode: data before: {:b}", data[0]);
+        data[0] = (data[0] & !(1 << 3)) | ((enable as u8) << 3);
+        data[0] = (data[0] & !(0b111)) | freq_register;
+        log::info!("Magnetometer: set_continuous_mode: data after: {:b}", data[0]);
 
-    //     ecp5.write_spi(slot, &[Internal_control_2 | WRITE, data[0] | 1 << 7]);
-    //     log::info!("Magnetometer: set_continuous_mode frequency: {} enable: {}", freq, enable);
-    // }
+        ecp5.write_spi(self.slot, &[Internal_control_2 | WRITE, data[0] | 1 << 7]);
+        log::info!("Magnetometer: set_continuous_mode frequency: {} enable: {}", freq, enable);
+    }
 
     pub fn reset(&mut self, ecp5: &mut ECP5) {
         let mut data: [u8;1] = [0];
-        ecp5.read_spi(self.slot, &[Internal_control_1 | READ], &mut data);
-        ecp5.write_spi(self.slot, &[Internal_control_1 | WRITE, data[0] | 1 << 7]);
-        log::info!("Magnetometer: Reset");
+        self.read_register(ecp5, Internal_control_1, &mut data);
+        self.write_register(ecp5, Internal_control_1, data[0] | (1 << 7));
+        // log::info!("Magnetometer: Reset");
     }
 
     // pub fn set_x_inhibit(slot: u16, ecp5: &mut ECP5, inhibit: bool) {
@@ -228,11 +229,10 @@ impl Mmc5983ma {
     //     result
     // }
 
-    // // Expecting 0b00110000 = 0x30
-    // pub fn read_product_id(slot: u16,
-    //                        ecp5: &mut ECP5) -> u8 {
-    //     let mut data: [u8;1] = [0];
-    //     ecp5.read_spi(slot, &[Product_ID_1 | READ], &mut data);
-    //     data[0]
-    // }
+    // Expecting 0b00110000 = 0x30
+    pub fn read_product_id(&mut self, ecp5: &mut ECP5) -> u8 {
+        let mut data: [u8;1] = [0];
+        self.read_register(ecp5, Product_ID_1, &mut data);
+        data[0]
+    }
 }
