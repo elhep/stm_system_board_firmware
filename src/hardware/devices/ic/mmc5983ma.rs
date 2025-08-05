@@ -23,7 +23,7 @@ use crate::hardware::setup::BusReference;
 
 #[derive(Serialize, Default, Clone, Copy)]
 pub struct Telemetry {
-    temp: f32,
+    pub temp: f32,
     x_field: f32,
     y_field: f32,
     z_field: f32,
@@ -128,13 +128,14 @@ impl Mmc5983ma {
         // ecp5.read_spi(self.slot, &[Internal_control_2 | READ], &mut data);
         self.read_register(ecp5, Internal_control_2, &mut data);
 
-        log::info!("Magnetometer: set_continuous_mode: data before: {:b}", data[0]);
+        // log::info!("Magnetometer: set_continuous_mode: data before: {:b}", data[0]);
         data[0] = (data[0] & !(1 << 3)) | ((enable as u8) << 3);
         data[0] = (data[0] & !(0b111)) | freq_register;
-        log::info!("Magnetometer: set_continuous_mode: data after: {:b}", data[0]);
+        // log::info!("Magnetometer: set_continuous_mode: data after: {:b}", data[0]);
 
-        ecp5.write_spi(self.slot, &[Internal_control_2 | WRITE, data[0] | 1 << 7]);
-        log::info!("Magnetometer: set_continuous_mode frequency: {} enable: {}", freq, enable);
+        // ecp5.write_spi(self.slot, &[Internal_control_2 | WRITE, data[0] | 1 << 7]);
+        self.write_register(ecp5, Internal_control_2, data[0] | (1 << 7));
+        // log::info!("Magnetometer: set_continuous_mode frequency: {} enable: {}", freq, enable);
     }
 
     pub fn reset(&mut self, ecp5: &mut ECP5) {
@@ -144,29 +145,29 @@ impl Mmc5983ma {
         // log::info!("Magnetometer: Reset");
     }
 
-    // pub fn set_x_inhibit(slot: u16, ecp5: &mut ECP5, inhibit: bool) {
-    //     let mut data: [u8;1] = [0];
-    //     ecp5.read_spi(slot, &[Internal_control_1 | READ], &mut data);
-    //     data[0] = (data[0] & !(1 << 2)) | ((inhibit as u8) << 2);
-    //     ecp5.write_spi(slot, &[Internal_control_1 | WRITE, data[0]]);
-    //     log::info!("Magnetometer: set_x_inhibit: {}", inhibit);
-    // }
+    pub fn set_x_inhibit(&mut self, ecp5: &mut ECP5, inhibit: bool) {
+        let mut data: [u8;1] = [0];
+        self.read_register(ecp5, Internal_control_1, &mut data);
+        data[0] = (data[0] & !(1 << 2)) | ((inhibit as u8) << 2);
+        self.write_register(ecp5, Internal_control_1, data[0]);
+        // log::info!("Magnetometer: set_x_inhibit: {}", inhibit);
+    }
 
-    // pub fn set_y_inhibit(slot: u16, ecp5: &mut ECP5, inhibit: bool) {
-    //     let mut data: [u8;1] = [0];
-    //     ecp5.read_spi(slot, &[Internal_control_1 | READ], &mut data);
-    //     data[0] = (data[0] & !(1 << 3)) | ((inhibit as u8) << 3);
-    //     ecp5.write_spi(slot, &[Internal_control_1 | WRITE, data[0]]);
-    //     log::info!("Magnetometer: set_y_inhibit: {}", inhibit);
-    // }
+    pub fn set_y_inhibit(&mut self, ecp5: &mut ECP5, inhibit: bool) {
+        let mut data: [u8;1] = [0];
+        self.read_register(ecp5, Internal_control_1, &mut data);
+        data[0] = (data[0] & !(1 << 3)) | ((inhibit as u8) << 3);
+        self.write_register(ecp5, Internal_control_1, data[0]);
+        // log::info!("Magnetometer: set_y_inhibit: {}", inhibit);
+    }
 
-    // pub fn set_z_inhibit(slot: u16, ecp5: &mut ECP5, inhibit: bool) {
-    //     let mut data: [u8;1] = [0];
-    //     ecp5.read_spi(slot, &[Internal_control_1 | READ], &mut data);
-    //     data[0] = (data[0] & !(1 << 4)) | ((inhibit as u8) << 4);
-    //     ecp5.write_spi(slot, &[Internal_control_1 | WRITE, data[0]]);
-    //     log::info!("Magnetometer: set_z_inhibit: {}", inhibit);
-    // }
+    pub fn set_z_inhibit(&mut self, ecp5: &mut ECP5, inhibit: bool) {
+        let mut data: [u8;1] = [0];
+        self.read_register(ecp5, Internal_control_1, &mut data);
+        data[0] = (data[0] & !(1 << 4)) | ((inhibit as u8) << 4);
+        self.write_register(ecp5, Internal_control_1, data[0]);
+        // log::info!("Magnetometer: set_z_inhibit: {}", inhibit);
+    }
 
     // pub fn measure_m_field(slot: u16, ecp5: &mut ECP5) -> (f32, f32, f32) {
     //     let mut data: [u8;1] = [0];
@@ -211,23 +212,23 @@ impl Mmc5983ma {
     // }
 
 
-    // pub fn measure_temperature(slot: u16, ecp5: &mut ECP5) -> f32 {
-    //     let mut data: [u8;1] = [0];
-    //     ecp5.read_spi(slot, &[Internal_control_0 | READ], &mut data);
-    //     ecp5.write_spi(slot, &[Internal_control_0 | WRITE, data[0] | 1 << 1]);
+    pub fn measure_temperature(&mut self, ecp5: &mut ECP5) -> f32 {
+        let mut data: [u8;1] = [0];
+        self.read_register(ecp5, Internal_control_0, &mut data);
+        self.write_register(ecp5, Internal_control_0, data[0] | (1 << 1));
 
-    //     data = [0];
+        data = [0];
 
-    //     while (data[0] >> 1) & 1 != 1 {
-    //         // log::info!("Magnetometer: Wait for t meas done, status: {}", data[0]);
-    //         ecp5.read_spi(slot, &[Status | READ], &mut data);
-    //     }
+        while (data[0] >> 1) & 1 != 1 {
+            // log::info!("Magnetometer: Wait for t meas done, status: {}", data[0]);
+            self.read_register(ecp5, Status, &mut data);
+        }
 
-    //     ecp5.read_spi(slot, &[Tout | READ], &mut data);
-    //     let result = -75.0 + (data[0] as f32)*200.0/255.0;
-    //     log::info!("Magnetometer: Temperature: {} -> {} deg C", data[0], result);
-    //     result
-    // }
+        self.read_register(ecp5, Tout, &mut data);
+        let result = -75.0 + (data[0] as f32)*200.0/255.0;
+        log::info!("Magnetometer: Temperature: {} -> {} deg C", data[0], result);
+        result
+    }
 
     // Expecting 0b00110000 = 0x30
     pub fn read_product_id(&mut self, ecp5: &mut ECP5) -> u8 {

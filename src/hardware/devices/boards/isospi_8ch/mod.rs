@@ -9,7 +9,7 @@ use embedded_hal::blocking::delay::DelayMs;
 
 const sensor_count: usize = 8;
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Copy)]
 pub struct Telemetry {
     pub det_telemetry: [mmc5983ma::Telemetry; sensor_count]
 }
@@ -185,12 +185,11 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
                 // delay.delay_ms(5 as u32);
                 result = self.magnetometers[i].read_product_id(&mut bus.ecp5);
                 log::info!("Magnetometer {}: Read product id: {:X}", i, result);
+                self.magnetometers[i].set_continuous_mode(&mut bus.ecp5, 10, true);
+                self.magnetometers[i].set_x_inhibit(&mut bus.ecp5, false);
+                self.magnetometers[i].set_y_inhibit(&mut bus.ecp5, false);
+                self.magnetometers[i].set_z_inhibit(&mut bus.ecp5, false);
             });
-            
-            // Mmc5983ma::set_continuous_mode(self.slot, &mut bus.ecp5, 10, true);
-            // Mmc5983ma::set_x_inhibit(self.slot, &mut bus.ecp5, false);
-            // Mmc5983ma::set_y_inhibit(self.slot, &mut bus.ecp5, false);
-            // Mmc5983ma::set_z_inhibit(self.slot, &mut bus.ecp5, false);
         };
         true
     }
@@ -200,17 +199,21 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
     }
 
     fn telemetry(&mut self) -> (Telemetry, u16) {
-        // log::info!("Magnetometer: telemetry spawn");
-        let mut telemetry = Telemetry::default();
-        // self.bus.lock(|bus| {
-        //     log::info!("Magnetometer: bus lock acquired");
-        //     telemetry.temp = Mmc5983ma::measure_temperature(self.slot, &mut bus.ecp5);
+        log::info!("Magnetometer: telemetry spawn");
+        // let mut telemetry = Telemetry::default();
+        // for i in 0..sensor_count {
+        //     self.encode_cs(i as u8);
+            // self.bus.lock(|bus| {
+                // log::info!("Magnetometer {}: bus lock acquired", i);
+                
+                // self.telemetry.det_telemetry[i].temp = self.magnetometers[i].measure_temperature(&mut bus.ecp5);
         //     let result = Mmc5983ma::read_m_field(self.slot, &mut bus.ecp5);
         //     telemetry.x_field = result.0;
         //     telemetry.y_field = result.1;
         //     telemetry.z_field = result.2;
-        // });
-        (telemetry, self.settings.telemetry_period)
+        //     });
+        // }
+        (self.telemetry, self.settings.telemetry_period)
     }
 
     fn check_interrupt(&mut self) -> () {}
