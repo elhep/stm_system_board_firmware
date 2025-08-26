@@ -268,6 +268,12 @@ impl ECP5 {
         self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::OE, data).unwrap();
     }
 
+    pub fn read_outputs(&mut self,
+                    slot_number: u16,
+                    data: &mut [u8]){
+        self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::OUTPUT, data).unwrap();
+    }
+
     pub fn write_outputs(&mut self,
                 slot_number: u16,
                 data: &[u8]){

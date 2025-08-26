@@ -9,7 +9,7 @@ use embedded_hal::blocking::delay::DelayMs;
 
 const sensor_count: usize = 8;
 
-#[derive(Serialize, Clone, Copy)]
+#[derive(Serialize, Clone, Copy, Miniconf, PartialEq)]
 pub struct Telemetry {
     pub det_telemetry: [mmc5983ma::Telemetry; sensor_count]
 }
@@ -90,16 +90,33 @@ impl IsoSPI_8ch {
         }
     }
 
-    // Enable ISO SPI
-    fn enable_iso_spi(&mut self){
-        let offset = self.slot * OFFSET_TO_SLOT;
-
+    fn disable_iso_spi_sleep(&mut self){
         self.bus.lock(|bus| {
             let mut data: [u8;2] = [0, 0];
             // Set output
-            // bus.ecp5.read_from_ecp5(offset + SLOT::OUTPUT, &mut data);
+            // bus.ecp5.read_outputs(self.slot, &mut data);
             // log::info!("ECP5 slot {} output  read: 0x{:X}{:X}", self.slot, data[0], data[1]);
             data[1] = 1 << 7;
+            bus.ecp5.write_outputs(self.slot, &mut data);
+            log::info!("ECP5 slot {} output write: 0x{:X}{:X}", self.slot, data[0], data[1]);
+
+            // Set pin to output
+            bus.ecp5.read_oe(self.slot, &mut data);
+            log::info!("ECP5 slot {} oe  read: 0x{:X}{:X}", self.slot, data[0], data[1]);
+            data[1] = data[1] | 1 << 7;
+            bus.ecp5.write_oe(self.slot, &mut data);
+            log::info!("ECP5 slot {} oe write: 0x{:X}{:X}", self.slot, data[0], data[1]);
+        })
+    }
+
+    // Not recommended, requires special wakeup sequence which is not implemented
+    fn enable_iso_spi_sleep(&mut self){
+        self.bus.lock(|bus| {
+            let mut data: [u8;2] = [0, 0];
+            // Set output
+            // bus.ecp5.read_outputs(self.slot, &mut data);
+            // log::info!("ECP5 slot {} output  read: 0x{:X}{:X}", self.slot, data[0], data[1]);
+            data[1] = 0 << 7;
             bus.ecp5.write_outputs(self.slot, &mut data);
             log::info!("ECP5 slot {} output write: 0x{:X}{:X}", self.slot, data[0], data[1]);
 
@@ -131,10 +148,10 @@ impl IsoSPI_8ch {
             log::info!("ECP5 SPI length: 0x{:X}{:X}", data[0], data[1]);
             bus.ecp5.write_to_ecp5(offset + SPI::CS, &[0x00, 0x01]).unwrap();
             bus.ecp5.write_to_ecp5(offset + SPI::CS_POL, &[0x00, 0x00]).unwrap();
-            bus.ecp5.write_to_ecp5(offset + SPI::DIV, &[0x00, 0x64]).unwrap();
+            bus.ecp5.write_to_ecp5(offset + SPI::DIV, &[0x00, 0xA4]).unwrap();
             bus.ecp5.write_to_ecp5(offset + SPI::OFFLINE, &[0x00, 0x00]).unwrap();
-            bus.ecp5.write_to_ecp5(offset + SPI::CLK_POL, &[0x00, 0x01]).unwrap();
-            bus.ecp5.write_to_ecp5(offset + SPI::CLK_PHA, &[0x00, 0x01]).unwrap();
+            bus.ecp5.write_to_ecp5(offset + SPI::CLK_POL, &[0x00, 0x00]).unwrap();
+            bus.ecp5.write_to_ecp5(offset + SPI::CLK_PHA, &[0x00, 0x00]).unwrap();
             bus.ecp5.write_to_ecp5(offset + SPI::LSB_FST, &[0x00, 0x00]).unwrap();
             bus.ecp5.write_to_ecp5(offset + SPI::HALF_DUP, &[0x00, 0x00]).unwrap();
 
@@ -148,13 +165,12 @@ impl IsoSPI_8ch {
     }
 
     fn encode_cs(&mut self, device_num: u8) -> () {
-        let offset = self.slot * OFFSET_TO_SLOT + OFFSET_TO_SPI;
         let device_num_masked = device_num & 0x07;
         // log::info!("ISO SPI: Encode CS: {}", device_num_masked);
         self.bus.lock(|bus| {
             let mut data: [u8;2] = [0, 0];
             // Set output
-            bus.ecp5.read_from_ecp5(offset + SLOT::OUTPUT, &mut data);
+            bus.ecp5.read_outputs(self.slot, &mut data);
             // log::info!("ECP5 slot {} output read: 0x{:X}{:X}", self.slot, data[0], data[1]);
             data[1] = data[1] & !(0x07 << 4);
             data[1] = data[1] | (device_num_masked << 4);
@@ -173,7 +189,7 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
         log::info!("ISO SPI: Begin init");
         self.init_interface();
         log::info!("ISO SPI: SPI setup");
-        self.enable_iso_spi();
+        self.disable_iso_spi_sleep();
         log::info!("ISO SPI: Enabled");        
         
         for i in 0..sensor_count {
@@ -185,12 +201,14 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
                 delay.delay_ms(20 as u32);
                 result = self.magnetometers[i].read_product_id(&mut bus.ecp5);
                 log::info!("Magnetometer {}: Read product id: {:X}", i, result);
+                
                 if result == 0x30 {
                     self.magnetometers[i].settings.active = true;                
                     self.magnetometers[i].set_continuous_mode(&mut bus.ecp5, 10, true);
                     self.magnetometers[i].set_x_inhibit(&mut bus.ecp5, false);
                     self.magnetometers[i].set_y_inhibit(&mut bus.ecp5, false);
                     self.magnetometers[i].set_z_inhibit(&mut bus.ecp5, false);
+                    self.magnetometers[i].write_register(&mut bus.ecp5, mmc5983ma::Internal_control_0, (1 << 1) as u8);
                 }
             });
         };

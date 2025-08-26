@@ -3,6 +3,7 @@ use serde::Serialize;
 // use crate::hardware::devices::Devices;
 use crate::hardware::ecp5::{self, ECP5};
 use crate::hardware::setup::BusReference;
+use embedded_hal::blocking::delay::DelayMs;
 
 // pub type SPIInterface = hal::xspi::Qspi<hal::device::QUADSPI>;
 
@@ -21,7 +22,7 @@ use crate::hardware::setup::BusReference;
 //     }
 // }
 
-#[derive(Serialize, Default, Clone, Copy)]
+#[derive(Serialize, Default, Clone, Copy, Miniconf, PartialEq)]
 pub struct Telemetry {
     pub temp: f32,
     x_field: f32,
@@ -213,9 +214,10 @@ impl Mmc5983ma {
 
 
     pub fn measure_temperature(&mut self, ecp5: &mut ECP5) -> f32 {
+        let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
+            400000000,
+        ));
         let mut data: [u8;1] = [0];
-        self.read_register(ecp5, Internal_control_0, &mut data);
-        log::info!("Magnetometer: Internal_control_0: 0x{:X}", data[0]);
         self.write_register(ecp5, Internal_control_0, data[0] | (1 << 1));
 
         data = [0];
@@ -223,7 +225,9 @@ impl Mmc5983ma {
         while (data[0] >> 1) & 1 != 1 {
             self.read_register(ecp5, Status, &mut data);
             log::info!("Magnetometer: Wait for t meas done, status: 0x{:X}", data[0]);
+            delay.delay_ms(100 as u32);
         }
+        log::info!("Magnetometer: Wait for t meas done, status: 0x{:X}", data[0]);
 
         self.read_register(ecp5, Tout, &mut data);
         let result = -75.0 + (data[0] as f32)*200.0/255.0;
