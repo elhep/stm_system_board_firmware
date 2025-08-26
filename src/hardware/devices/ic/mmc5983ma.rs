@@ -25,9 +25,9 @@ use embedded_hal::blocking::delay::DelayMs;
 #[derive(Serialize, Default, Clone, Copy, Miniconf, PartialEq)]
 pub struct Telemetry {
     pub temp: f32,
-    x_field: f32,
-    y_field: f32,
-    z_field: f32,
+    pub x_field: f32,
+    pub y_field: f32,
+    pub z_field: f32,
     // is_calibration_on: bool,
 }
 
@@ -72,6 +72,7 @@ impl Default for Settings {
 pub struct Mmc5983ma {
     slot: u16,
     pub settings: Settings,
+    internal_control_registers: [u8; 4],
 }
 
 impl Mmc5983ma {
@@ -81,6 +82,7 @@ impl Mmc5983ma {
         Self {
             slot: slot_number,
             settings: Settings::default(),
+            internal_control_registers: [0; 4],
         }
     }
 
@@ -114,6 +116,7 @@ impl Mmc5983ma {
     // }
 
     pub fn set_continuous_mode(&mut self, ecp5: &mut ECP5, freq: u16, enable: bool) {
+        // Frequency is in Hz
         let freq_register: u8 = match freq {
             0 => 0,
             1 => 1,
@@ -140,58 +143,57 @@ impl Mmc5983ma {
     }
 
     pub fn reset(&mut self, ecp5: &mut ECP5) {
-        let mut data: [u8;1] = [0];
-        self.read_register(ecp5, Internal_control_1, &mut data);
-        self.write_register(ecp5, Internal_control_1, data[0] | (1 << 7));
+        self.write_register(ecp5, Internal_control_1, self.internal_control_registers[1] | (1 << 7));
         // log::info!("Magnetometer: Reset");
     }
 
     pub fn set_x_inhibit(&mut self, ecp5: &mut ECP5, inhibit: bool) {
-        let mut data: [u8;1] = [0];
-        self.read_register(ecp5, Internal_control_1, &mut data);
-        data[0] = (data[0] & !(1 << 2)) | ((inhibit as u8) << 2);
-        self.write_register(ecp5, Internal_control_1, data[0]);
-        // log::info!("Magnetometer: set_x_inhibit: {}", inhibit);
+        self.internal_control_registers[1] = (self.internal_control_registers[1] & !(1 << 2)) | ((inhibit as u8) << 2);
+        self.write_register(ecp5, Internal_control_1, self.internal_control_registers[1]);
+        // log::info!("Magnetometer: set_x_inhibit: {}"", inhibit);
     }
 
     pub fn set_y_inhibit(&mut self, ecp5: &mut ECP5, inhibit: bool) {
-        let mut data: [u8;1] = [0];
-        self.read_register(ecp5, Internal_control_1, &mut data);
-        data[0] = (data[0] & !(1 << 3)) | ((inhibit as u8) << 3);
-        self.write_register(ecp5, Internal_control_1, data[0]);
+        self.internal_control_registers[1] = (self.internal_control_registers[1] & !(1 << 3)) | ((inhibit as u8) << 3);
+        self.write_register(ecp5, Internal_control_1, self.internal_control_registers[1]);
         // log::info!("Magnetometer: set_y_inhibit: {}", inhibit);
     }
 
     pub fn set_z_inhibit(&mut self, ecp5: &mut ECP5, inhibit: bool) {
-        let mut data: [u8;1] = [0];
-        self.read_register(ecp5, Internal_control_1, &mut data);
-        data[0] = (data[0] & !(1 << 4)) | ((inhibit as u8) << 4);
-        self.write_register(ecp5, Internal_control_1, data[0]);
+        self.internal_control_registers[1] = (self.internal_control_registers[1] & !(1 << 4)) | ((inhibit as u8) << 4);
+        self.write_register(ecp5, Internal_control_1, self.internal_control_registers[1]);
         // log::info!("Magnetometer: set_z_inhibit: {}", inhibit);
     }
 
-    // pub fn measure_m_field(slot: u16, ecp5: &mut ECP5) -> (f32, f32, f32) {
-    //     let mut data: [u8;1] = [0];
-    //     ecp5.read_spi(slot, &[Internal_control_0 | READ], &mut data);
-    //     ecp5.write_spi(slot, &[Internal_control_0 | WRITE, data[0] | 1 << 0]);
+    pub fn measure_m_field(&mut self, ecp5: &mut ECP5) -> (f32, f32, f32) {
+        let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
+            400000000,
+        ));
+        let mut data: [u8;1] = [0];
+        // ecp5.read_spi(slot, &[Internal_control_0 | READ], &mut data);
+        self.read_register(ecp5, Internal_control_0, &mut data);
+        // ecp5.write_spi(slot, &[Internal_control_0 | WRITE, data[0] | 1 << 0]);
+        self.write_register(ecp5, Internal_control_0, data[0] | 1 << 0);
 
-    //     data = [0];
+        data = [0];
 
-    //     while (data[0] & 1) != 1 {
-    //         // log::info!("Magnetometer: Wait for m meas done, status: {}", data[0]);
-    //         ecp5.read_spi(slot, &[Status | READ], &mut data);
-    //     }
+        while (data[0] & 1) != 1 {
+            self.read_register(ecp5, Status, &mut data);
+            // log::info!("Magnetometer: Wait for m meas done, status: 0x{:X}", data[0]);
+            delay.delay_ms(100 as u32);
+        }
 
-    //     let mut m_field: [u8; 7] = [0; 7];
+        let mut m_field: [u8; 7] = [0; 7];
 
-    //     ecp5.read_spi(slot, &[Xout0 | READ], &mut m_field);
-    //     let x_field: f32 = (((u32::from_be_bytes([0, m_field[0], m_field[1], m_field[6] & 0b11000000]) >> 6) as f32) - 131072.) / 16384.;
-    //     let y_field: f32 = (((u32::from_be_bytes([0, m_field[2], m_field[3], (m_field[6] & 0b00110000) << 2]) >> 6) as f32) - 131072.) / 16384.;
-    //     let z_field: f32 = (((u32::from_be_bytes([0, m_field[4], m_field[5], (m_field[6] & 0b00001100) << 4]) >> 6) as f32) - 131072.) / 16384.;
-    //     // log::info!("Magnetometer: raw Field: {}, {}, {}, {}, {}, {}, {}", m_field[0], m_field[1], m_field[2], m_field[3], m_field[4], m_field[5], m_field[6]);
-    //     log::info!("Magnetometer: Field: X {} Y {} Z {}", x_field, y_field, z_field);
-    //     (x_field, y_field, z_field)
-    // }
+        // ecp5.read_spi(slot, &[Xout0 | READ], &mut m_field);
+        self.read_register(ecp5, Xout0, &mut m_field);
+        let x_field: f32 = (((u32::from_be_bytes([0, m_field[0], m_field[1], m_field[6] & 0b11000000]) >> 6) as f32) - 131072.) / 16384.;
+        let y_field: f32 = (((u32::from_be_bytes([0, m_field[2], m_field[3], (m_field[6] & 0b00110000) << 2]) >> 6) as f32) - 131072.) / 16384.;
+        let z_field: f32 = (((u32::from_be_bytes([0, m_field[4], m_field[5], (m_field[6] & 0b00001100) << 4]) >> 6) as f32) - 131072.) / 16384.;
+        // log::info!("Magnetometer: raw Field: {}, {}, {}, {}, {}, {}, {}", m_field[0], m_field[1], m_field[2], m_field[3], m_field[4], m_field[5], m_field[6]);
+        log::info!("Magnetometer: Field: X {} Y {} Z {}", x_field, y_field, z_field);
+        (x_field, y_field, z_field)
+    }
 
     // pub fn read_m_field(slot: u16, ecp5: &mut ECP5) -> (f32, f32, f32) {
     //     let mut data: [u8;1] = [0];

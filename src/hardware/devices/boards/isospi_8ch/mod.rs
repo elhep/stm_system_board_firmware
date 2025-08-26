@@ -148,7 +148,7 @@ impl IsoSPI_8ch {
             log::info!("ECP5 SPI length: 0x{:X}{:X}", data[0], data[1]);
             bus.ecp5.write_to_ecp5(offset + SPI::CS, &[0x00, 0x01]).unwrap();
             bus.ecp5.write_to_ecp5(offset + SPI::CS_POL, &[0x00, 0x00]).unwrap();
-            bus.ecp5.write_to_ecp5(offset + SPI::DIV, &[0x00, 0xA4]).unwrap();
+            bus.ecp5.write_to_ecp5(offset + SPI::DIV, &[0x00, 0x90]).unwrap(); // Limited by isoSPI
             bus.ecp5.write_to_ecp5(offset + SPI::OFFLINE, &[0x00, 0x00]).unwrap();
             bus.ecp5.write_to_ecp5(offset + SPI::CLK_POL, &[0x00, 0x00]).unwrap();
             bus.ecp5.write_to_ecp5(offset + SPI::CLK_PHA, &[0x00, 0x00]).unwrap();
@@ -208,7 +208,7 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
                     self.magnetometers[i].set_x_inhibit(&mut bus.ecp5, false);
                     self.magnetometers[i].set_y_inhibit(&mut bus.ecp5, false);
                     self.magnetometers[i].set_z_inhibit(&mut bus.ecp5, false);
-                    self.magnetometers[i].write_register(&mut bus.ecp5, mmc5983ma::Internal_control_0, (1 << 1) as u8);
+                    // self.magnetometers[i].write_register(&mut bus.ecp5, mmc5983ma::Internal_control_0, (1 << 1) as u8);
                 }
             });
         };
@@ -228,11 +228,12 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
                 self.bus.lock(|bus| {
                     log::info!("Magnetometer {}: bus lock acquired", i);
                     
-                    self.telemetry.det_telemetry[i].temp = self.magnetometers[i].measure_temperature(&mut bus.ecp5);
-                // let result = Mmc5983ma::read_m_field(self.slot, &mut bus.ecp5);
-                // telemetry.x_field = result.0;
-                // telemetry.y_field = result.1;
-                // telemetry.z_field = result.2;
+                    // self.telemetry.det_telemetry[i].temp = self.magnetometers[i].measure_temperature(&mut bus.ecp5);
+                    let result = self.magnetometers[i].measure_m_field(&mut bus.ecp5);
+                    // let result = self.magnetometers[i].read_m_field(self.slot, &mut bus.ecp5);
+                    self.telemetry.det_telemetry[i].x_field = result.0;
+                    self.telemetry.det_telemetry[i].y_field = result.1;
+                    self.telemetry.det_telemetry[i].z_field = result.2;
                 });
             }
         }
