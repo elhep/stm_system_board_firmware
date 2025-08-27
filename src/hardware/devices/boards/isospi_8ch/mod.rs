@@ -4,6 +4,7 @@ use crate::hardware::devices::boards::Devices;
 use crate::hardware::ecp5::{SLOT, OFFSET_TO_SLOT, OFFSET_TO_SPI, SPI};
 use crate::hardware::setup::BusReference;
 use crate::hardware::devices::ic::mmc5983ma;
+use crate::hardware::devices::ic::mmc5983ma::{Bandwidth, ContinuousMeasurementFrequency, PeriodicSet};
 
 use embedded_hal::blocking::delay::DelayMs;
 
@@ -53,7 +54,7 @@ impl Default for Telemetry {
 // }
 
 
-#[derive(Clone, Copy, Debug, Miniconf, PartialEq)]
+#[derive(Clone, Copy, Debug, Miniconf)]
 pub struct Settings {
     ic_settings: [mmc5983ma::Settings; sensor_count],
     pub telemetry_period : u16,
@@ -188,25 +189,26 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
         ))  ;
         self.init_interface();
         self.disable_iso_spi_sleep();
+
+        self.settings_update(Settings::default());
         
         for i in 0..sensor_count {
             self.encode_cs(i as u8);
             self.bus.lock(|bus| {
                 let mut result: u8;
                 // log::info!("Magnetometer: bus lock acquired");
-                self.magnetometers[i].reset(&mut bus.ecp5);
+                self.magnetometers[i].reset_device(&mut bus.ecp5);
                 delay.delay_ms(20 as u32);
                 result = self.magnetometers[i].read_product_id(&mut bus.ecp5);
-                log::info!("Magnetometer {}: Read product id: {:X}", i, result);
+                // log::info!("Magnetometer {}: Read product id: {:X}", i, result);
                 
                 if result == 0x30 {
-                    self.telemetry.det_telemetry[i].active = true;                
-                    self.magnetometers[i].set_continuous_mode(&mut bus.ecp5, 10, true);
+                    self.telemetry.det_telemetry[i].active = true;
+                    self.magnetometers[i].remove_bridge_offset(&mut bus.ecp5);                 
                     // For now, use defaults
                     // self.magnetometers[i].set_x_inhibit(&mut bus.ecp5, false);
                     // self.magnetometers[i].set_yz_inhibit(&mut bus.ecp5, true);
                     // self.magnetometers[i].set_z_inhibit(&mut bus.ecp5, false);
-                    // self.magnetometers[i].write_register(&mut bus.ecp5, mmc5983ma::Internal_control_0, (1 << 1) as u8);
                 }
             });
         };
@@ -214,21 +216,36 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
     }
 
     fn settings_update(&mut self, new_settings: Settings) -> () {
-        return
+        log::info!("Magnetometer: Settigns update");
+        self.settings = new_settings;        
+
+        for i in 0..sensor_count {
+            if self.telemetry.det_telemetry[i].active {
+                self.encode_cs(i as u8);
+                self.bus.lock(|bus| {
+                    self.magnetometers[i].set_continuous_mode(&mut bus.ecp5, self.settings.ic_settings[i].continuous_measurement_frequency);
+                    self.magnetometers[i].set_periodic_set(&mut bus.ecp5, self.settings.ic_settings[i].periodic_set_frequency);
+                    self.magnetometers[i].set_meas_bandwidth(&mut bus.ecp5, self.settings.ic_settings[i].bandwidth);
+                })
+            }
+        }
     }
 
     fn telemetry(&mut self) -> (Telemetry, u16) {
-        log::info!("Magnetometer: telemetry spawn");
-        // let mut telemetry = Telemetry::default();
         for i in 0..sensor_count {
             if self.telemetry.det_telemetry[i].active {
                 self.encode_cs(i as u8);
                 self.bus.lock(|bus| {
                     log::info!("Magnetometer {}: bus lock acquired", i);
                     
-                    // self.telemetry.det_telemetry[i].t = self.magnetometers[i].measure_temperature(&mut bus.ecp5);
-                    // let result = self.magnetometers[i].measure_m_field(&mut bus.ecp5);
-                    let result = self.magnetometers[i].read_m_field(&mut bus.ecp5);
+                    let mut result: (f32, f32, f32);
+                    if self.settings.ic_settings[i].continuous_measurement_frequency == ContinuousMeasurementFrequency::CM_Off {
+                        self.telemetry.det_telemetry[i].t = self.magnetometers[i].measure_temperature(&mut bus.ecp5);                        
+                        result = self.magnetometers[i].measure_m_field(&mut bus.ecp5);
+                    }
+                    else {
+                        result = self.magnetometers[i].read_m_field_w_offsets(&mut bus.ecp5);
+                    }
                     self.telemetry.det_telemetry[i].x = result.0;
                     self.telemetry.det_telemetry[i].y = result.1;
                     self.telemetry.det_telemetry[i].z = result.2;
