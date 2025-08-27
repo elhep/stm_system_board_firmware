@@ -9,21 +9,21 @@ use embedded_hal::blocking::delay::DelayMs;
 
 const sensor_count: usize = 8;
 
-#[derive(Serialize, Clone, Copy, Miniconf, PartialEq)]
+#[derive(Serialize, Clone, Copy)]
 pub struct Telemetry {
-    pub det_telemetry: [mmc5983ma::Telemetry; sensor_count]
+    pub det_telemetry: [mmc5983ma::Telemetry; sensor_count],
 }
 impl Telemetry {
     pub fn new() -> Self {
         Self {
-            det_telemetry: [mmc5983ma::Telemetry::default(); sensor_count]
+            det_telemetry: [mmc5983ma::Telemetry::default(); sensor_count],
         }
     }
 }
 impl Default for Telemetry {
     fn default() -> Self {
         Self{
-            det_telemetry: [mmc5983ma::Telemetry::default(); sensor_count]
+            det_telemetry: [mmc5983ma::Telemetry::default(); sensor_count],
         }
     }
 }
@@ -186,11 +186,8 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
             400000000,
         ))  ;
-        log::info!("ISO SPI: Begin init");
         self.init_interface();
-        log::info!("ISO SPI: SPI setup");
         self.disable_iso_spi_sleep();
-        log::info!("ISO SPI: Enabled");        
         
         for i in 0..sensor_count {
             self.encode_cs(i as u8);
@@ -203,11 +200,12 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
                 log::info!("Magnetometer {}: Read product id: {:X}", i, result);
                 
                 if result == 0x30 {
-                    self.magnetometers[i].settings.active = true;                
-                    self.magnetometers[i].set_continuous_mode(&mut bus.ecp5, 10, true);
-                    self.magnetometers[i].set_x_inhibit(&mut bus.ecp5, false);
-                    self.magnetometers[i].set_y_inhibit(&mut bus.ecp5, false);
-                    self.magnetometers[i].set_z_inhibit(&mut bus.ecp5, false);
+                    self.telemetry.det_telemetry[i].active = true;                
+                    // self.magnetometers[i].set_continuous_mode(&mut bus.ecp5, 10, true);
+                    // For now, use defaults
+                    // self.magnetometers[i].set_x_inhibit(&mut bus.ecp5, false);
+                    // self.magnetometers[i].set_yz_inhibit(&mut bus.ecp5, true);
+                    // self.magnetometers[i].set_z_inhibit(&mut bus.ecp5, false);
                     // self.magnetometers[i].write_register(&mut bus.ecp5, mmc5983ma::Internal_control_0, (1 << 1) as u8);
                 }
             });
@@ -223,7 +221,7 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
         log::info!("Magnetometer: telemetry spawn");
         // let mut telemetry = Telemetry::default();
         for i in 0..sensor_count {
-            if self.magnetometers[i].settings.active {
+            if self.telemetry.det_telemetry[i].active {
                 self.encode_cs(i as u8);
                 self.bus.lock(|bus| {
                     log::info!("Magnetometer {}: bus lock acquired", i);
@@ -231,9 +229,9 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
                     // self.telemetry.det_telemetry[i].temp = self.magnetometers[i].measure_temperature(&mut bus.ecp5);
                     let result = self.magnetometers[i].measure_m_field(&mut bus.ecp5);
                     // let result = self.magnetometers[i].read_m_field(self.slot, &mut bus.ecp5);
-                    self.telemetry.det_telemetry[i].x_field = result.0;
-                    self.telemetry.det_telemetry[i].y_field = result.1;
-                    self.telemetry.det_telemetry[i].z_field = result.2;
+                    self.telemetry.det_telemetry[i].x = result.0;
+                    self.telemetry.det_telemetry[i].y = result.1;
+                    self.telemetry.det_telemetry[i].z = result.2;
                 });
             }
         }
