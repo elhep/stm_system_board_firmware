@@ -1,40 +1,12 @@
 pub use miniconf::Miniconf;
 use serde::Serialize;
 use serde::Deserialize;
-// use crate::hardware::devices::Devices;
 use crate::hardware::ecp5::{self, ECP5};
 use crate::hardware::setup::BusReference;
 use embedded_hal::blocking::delay::DelayMs;
 
-// pub type SPIInterface = hal::xspi::Qspi<hal::device::QUADSPI>;
-
-// #[derive(Copy, Clone)]
-// pub struct TempTelemetryBuffer {
-//     pub temp: u16,
-//     pub status: u8
-// }
-
-// impl Default for TempTelemetryBuffer {
-//     fn default() -> Self {
-//         Self {
-//             temp: 0,
-//             status: 0
-//         }
-//     }
-// }
-
-#[derive(Serialize, Default, Clone, Copy)]
-pub struct Telemetry {
-    pub t: f32,
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-    pub active: bool,
-}
-
 pub const WRITE :u8 = 0;
 pub const READ :u8 = 1 << 7;
-
 
 // Registers:
 pub const XOUT0     :u8 = 0;
@@ -83,6 +55,15 @@ pub enum PeriodicSet {
     SetEvery500Meas,
     SetEvery1000Meas,
     SetEvery2000Meas,
+}
+
+#[derive(Serialize, Default, Clone, Copy)]
+pub struct Telemetry {
+    pub t: f32,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub present: bool,
 }
 
 #[derive(Clone, Copy, Debug, Miniconf)]
