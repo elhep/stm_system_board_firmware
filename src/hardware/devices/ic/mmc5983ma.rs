@@ -68,18 +68,23 @@ pub struct Telemetry {
 
 #[derive(Clone, Copy, Debug, Miniconf)]
 pub struct Settings {
-    pub reboot: bool,
+    /// If device should be used
     pub enable: bool,
+    /// Device will be reset once (only if enabled)
+    // pub reset_device: bool,
+    /// Measurement bandwidth
     pub bandwidth: Bandwidth,
+    /// How often should automatic measurement be performed
     pub continuous_measurement_frequency: ContinuousMeasurementFrequency,
+    /// How often should automatic SET operation be performed (every N measurements)
     pub periodic_set_frequency: PeriodicSet,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            reboot: false,
             enable: true,
+            // reset_device: false,
             bandwidth: Bandwidth::BW100Hz,
             continuous_measurement_frequency: ContinuousMeasurementFrequency::CM_Off,
             periodic_set_frequency: PeriodicSet::Off,

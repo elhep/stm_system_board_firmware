@@ -195,7 +195,7 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
         self.settings = new_settings;        
 
         for i in 0..sensor_count {
-            if self.telemetry.det_telemetry[i].present {
+            if self.telemetry.det_telemetry[i].present && self.settings.ic_settings[i].enable {
                 self.encode_cs(i as u8);
                 self.bus.lock(|bus| {
                     self.magnetometers[i].set_continuous_mode(&mut bus.ecp5, self.settings.ic_settings[i].continuous_measurement_frequency);
@@ -208,7 +208,7 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
 
     fn telemetry(&mut self) -> (Telemetry, u16) {
         for i in 0..sensor_count {
-            if self.telemetry.det_telemetry[i].present {
+            if self.telemetry.det_telemetry[i].present && self.settings.ic_settings[i].enable {
                 self.encode_cs(i as u8);
                 self.bus.lock(|bus| {
                     log::info!("Magnetometer {}: bus lock acquired", i);
