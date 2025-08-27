@@ -201,7 +201,7 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
                 
                 if result == 0x30 {
                     self.telemetry.det_telemetry[i].active = true;                
-                    // self.magnetometers[i].set_continuous_mode(&mut bus.ecp5, 10, true);
+                    self.magnetometers[i].set_continuous_mode(&mut bus.ecp5, 10, true);
                     // For now, use defaults
                     // self.magnetometers[i].set_x_inhibit(&mut bus.ecp5, false);
                     // self.magnetometers[i].set_yz_inhibit(&mut bus.ecp5, true);
@@ -226,9 +226,9 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
                 self.bus.lock(|bus| {
                     log::info!("Magnetometer {}: bus lock acquired", i);
                     
-                    // self.telemetry.det_telemetry[i].temp = self.magnetometers[i].measure_temperature(&mut bus.ecp5);
-                    let result = self.magnetometers[i].measure_m_field(&mut bus.ecp5);
-                    // let result = self.magnetometers[i].read_m_field(self.slot, &mut bus.ecp5);
+                    // self.telemetry.det_telemetry[i].t = self.magnetometers[i].measure_temperature(&mut bus.ecp5);
+                    // let result = self.magnetometers[i].measure_m_field(&mut bus.ecp5);
+                    let result = self.magnetometers[i].read_m_field(&mut bus.ecp5);
                     self.telemetry.det_telemetry[i].x = result.0;
                     self.telemetry.det_telemetry[i].y = result.1;
                     self.telemetry.det_telemetry[i].z = result.2;

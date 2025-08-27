@@ -110,17 +110,26 @@ impl Mmc5983ma {
             _ => 0
         };
 
-        // log::info!("Magnetometer: set_continuous_mode: data before: {:b}", data[0]);
+        // log::info!("Magnetometer: set_continuous_mode: data before: {:b}", self.internal_control_registers[2]);
         self.internal_control_registers[2] = (self.internal_control_registers[2] & !(1 << 3)) | ((enable as u8) << 3);
         self.internal_control_registers[2] = (self.internal_control_registers[2] & !(0b111)) | freq_register;
-        // log::info!("Magnetometer: set_continuous_mode: data after: {:b}", data[0]);
+        // log::info!("Magnetometer: set_continuous_mode: data after: {:b}", self.internal_control_registers[2]);
 
         self.write_register(ecp5, Internal_control_2, self.internal_control_registers[2]);
         // log::info!("Magnetometer: set_continuous_mode frequency: {} enable: {}", freq, enable);
+
+        // Interrupt must be enabled for continuous mode to work
+        self.enable_interrupt(ecp5, enable);
     }
 
     pub fn reset(&mut self, ecp5: &mut ECP5) {
         self.write_register(ecp5, Internal_control_1, self.internal_control_registers[1] | (1 << 7));
+        // log::info!("Magnetometer: Reset");
+    }
+
+    pub fn enable_interrupt(&mut self, ecp5: &mut ECP5, enable: bool) {
+        self.internal_control_registers[0] = self.internal_control_registers[0] | ((enable as u8) << 2);
+        self.write_register(ecp5, Internal_control_0, self.internal_control_registers[0]);
         // log::info!("Magnetometer: Reset");
     }
 
@@ -147,12 +156,15 @@ impl Mmc5983ma {
     }
 
     pub fn measure_m_field(&mut self, ecp5: &mut ECP5) -> (f32, f32, f32) {
+        // Take magnetic field measurement
+        self.write_register(ecp5, Internal_control_0, self.internal_control_registers[0] | 1 << 0);
+        self.read_m_field(ecp5)
+    }
+
+    pub fn read_m_field(&mut self, ecp5: &mut ECP5) -> (f32, f32, f32) {
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
             400000000,
         ));
-        // Take magnetic field measurement
-        self.write_register(ecp5, Internal_control_0, self.internal_control_registers[0] | 1 << 0);
-
         let mut data = [0];
 
         while (data[0] & 1) != 1 {
@@ -172,26 +184,7 @@ impl Mmc5983ma {
         (x_field, y_field, z_field)
     }
 
-    // pub fn read_m_field(slot: u16, ecp5: &mut ECP5) -> (f32, f32, f32) {
-    //     let mut data: [u8;1] = [0];
-
-    //     while (data[0] & 1) != 1 {
-    //         // log::info!("Magnetometer: Wait for m meas done, status: {}", data[0]);
-    //         ecp5.read_spi(slot, &[Status | READ], &mut data);
-    //     }
-
-    //     let mut m_field: [u8; 7] = [0; 7];
-
-    //     ecp5.read_spi(slot, &[Xout0 | READ], &mut m_field);
-    //     let x_field: f32 = (((u32::from_be_bytes([0, m_field[0], m_field[1], m_field[6] & 0b11000000]) >> 6) as f32) - 131072.) / 16384.;
-    //     let y_field: f32 = (((u32::from_be_bytes([0, m_field[2], m_field[3], (m_field[6] & 0b00110000) << 2]) >> 6) as f32) - 131072.) / 16384.;
-    //     let z_field: f32 = (((u32::from_be_bytes([0, m_field[4], m_field[5], (m_field[6] & 0b00001100) << 4]) >> 6) as f32) - 131072.) / 16384.;
-    //     // log::info!("Magnetometer: raw Field: {}, {}, {}, {}, {}, {}, {}", m_field[0], m_field[1], m_field[2], m_field[3], m_field[4], m_field[5], m_field[6]);
-    //     log::info!("Magnetometer: Field: X {} Y {} Z {}", x_field, y_field, z_field);
-    //     (x_field, y_field, z_field)
-    // }
-
-
+    // Temperature cannot be measured when automatic magnetic measurements are enabled
     pub fn measure_temperature(&mut self, ecp5: &mut ECP5) -> f32 {
         let mut delay = asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
             400000000,
@@ -203,10 +196,9 @@ impl Mmc5983ma {
 
         while (data[0] >> 1) & 1 != 1 {
             self.read_register(ecp5, Status, &mut data);
-            log::info!("Magnetometer: Wait for t meas done, status: 0x{:X}", data[0]);
+            // log::info!("Magnetometer: Wait for t meas done, status: 0x{:X}", data[0]);
             delay.delay_ms(100 as u32);
         }
-        log::info!("Magnetometer: Wait for t meas done, status: 0x{:X}", data[0]);
 
         self.read_register(ecp5, Tout, &mut data);
         let result = -75.0 + (data[0] as f32)*200.0/255.0;
