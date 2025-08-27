@@ -173,13 +173,13 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
                 let mut result: u8;
                 // log::info!("Magnetometer: bus lock acquired");
                 self.magnetometers[i].reset_device(&mut bus.ecp5);
-                delay.delay_ms(20 as u32);
+                delay.delay_ms(10 as u32);
                 result = self.magnetometers[i].read_product_id(&mut bus.ecp5);
                 // log::info!("Magnetometer {}: Read product id: {:X}", i, result);
                 
                 if result == 0x30 {
                     self.telemetry.det_telemetry[i].present = true;
-                    self.magnetometers[i].remove_bridge_offset(&mut bus.ecp5);                 
+                    self.magnetometers[i].remove_bridge_offset(&mut bus.ecp5);
                     // For now, use defaults
                     // self.magnetometers[i].set_x_inhibit(&mut bus.ecp5, false);
                     // self.magnetometers[i].set_yz_inhibit(&mut bus.ecp5, true);
@@ -198,6 +198,10 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
             if self.telemetry.det_telemetry[i].present && self.settings.ic_settings[i].enable {
                 self.encode_cs(i as u8);
                 self.bus.lock(|bus| {
+                    if self.settings.ic_settings[i].bridge_offset_calculation {
+                        self.magnetometers[i].remove_bridge_offset(&mut bus.ecp5);
+                    }
+                    self.settings.ic_settings[i].bridge_offset_calculation = false;
                     self.magnetometers[i].set_continuous_mode(&mut bus.ecp5, self.settings.ic_settings[i].continuous_measurement_frequency);
                     self.magnetometers[i].set_periodic_set(&mut bus.ecp5, self.settings.ic_settings[i].periodic_set_frequency);
                     self.magnetometers[i].set_meas_bandwidth(&mut bus.ecp5, self.settings.ic_settings[i].bandwidth);

@@ -72,6 +72,8 @@ pub struct Settings {
     pub enable: bool,
     /// Device will be reset once (only if enabled)
     // pub reset_device: bool,
+    /// Perform bridge offset calculation once
+    pub bridge_offset_calculation: bool,
     /// Measurement bandwidth
     pub bandwidth: Bandwidth,
     /// How often should automatic measurement be performed
@@ -85,9 +87,10 @@ impl Default for Settings {
         Self {
             enable: true,
             // reset_device: false,
+            bridge_offset_calculation: false,
             bandwidth: Bandwidth::BW100Hz,
             continuous_measurement_frequency: ContinuousMeasurementFrequency::CM_Off,
-            periodic_set_frequency: PeriodicSet::Off,
+            periodic_set_frequency: PeriodicSet::SetEvery1000Meas,
         }
     }
 }
@@ -255,7 +258,7 @@ impl Mmc5983ma {
         while (data[0] & 1) != 1 {
             self.read_register(ecp5, STATUS, &mut data);
             // log::info!("Magnetometer: Wait for m meas done, status: 0x{:X}", data[0]);
-            delay.delay_ms(10 as u32);
+            delay.delay_ms(1 as u32);
         }
 
         let mut m_field: [u8; 7] = [0; 7];
@@ -292,7 +295,7 @@ impl Mmc5983ma {
         while (data[0] >> 1) & 1 != 1 {
             self.read_register(ecp5, STATUS, &mut data);
             // log::info!("Magnetometer: Wait for t meas done, status: 0x{:X}", data[0]);
-            delay.delay_ms(100 as u32);
+            delay.delay_ms(1 as u32);
         }
 
         self.read_register(ecp5, TOUT, &mut data);
