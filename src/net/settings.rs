@@ -8,6 +8,7 @@
                                                         hvsupnegneg::{self, HvSupNegNeg},
                                                         hvsupposneg::{self, HvSupPosNeg},
                                                         hvsupnegpos::{self, HvSupNegPos},};
+ use crate::hardware::devices::boards::isospi_8ch::{self, IsoSPI_8ch};
  use crate::hardware::devices::boards::EmptySlot;
  use crate::hardware::devices::boards::magneto::{self,Magneto};
  use crate::hardware::devices::boards::templogger::{TempLogger, self};
@@ -89,6 +90,11 @@
            HvSupNegNeg
       }
    };
+   (IsoSPI_8ch) => {
+        paste::paste! {
+            IsoSPI_8ch
+        }
+    };
     (Magneto) => {
         paste::paste!{
             Magneto
@@ -192,6 +198,6 @@
  ///     - SilpaDefault - work in progress
 
 devices_list!(
-    EmptySlot,EmptySlot,EmptySlot,EmptySlot,TempLogger,EmptySlot,EmptySlot,EmptySlot
+    IsoSPI_8ch,EmptySlot,EmptySlot,EmptySlot,TempLogger,EmptySlot,EmptySlot,EmptySlot
 );
 

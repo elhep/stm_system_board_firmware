@@ -1,6 +1,7 @@
 pub mod hvsup_isol;
 pub mod magneto;
 pub mod templogger;
+pub mod isospi_8ch;
 
 use miniconf::Miniconf;
 use serde::Serialize;

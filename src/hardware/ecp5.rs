@@ -123,7 +123,7 @@ impl ECP5 {
 
     // // data = [device_reg_address, data0, data1 ... dataX]
     // pub fn write_to_device(&mut self,
-    //                        slot_number: u8,
+    //                        slot_number: u16,
     //                        data: &[u8]
     // ) -> Result<(), hal::xspi::QspiError> {
     //     self.write_to_ecp5(address_ecp5, data)
@@ -268,6 +268,12 @@ impl ECP5 {
         self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::OE, data).unwrap();
     }
 
+    pub fn read_outputs(&mut self,
+                    slot_number: u16,
+                    data: &mut [u8]){
+        self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + SLOT::OUTPUT, data).unwrap();
+    }
+
     pub fn write_outputs(&mut self,
                 slot_number: u16,
                 data: &[u8]){
@@ -305,7 +311,7 @@ impl ECP5 {
     }
 
     // pub fn write_outputs(&mut self,
-    //                       slot_number: u8,
+    //                       slot_number: u16,
     //                       value: u8){
     //     let mut io : u16 = 0;
     //     for i in 0..8{
@@ -336,9 +342,10 @@ impl ECP5 {
         match end_status {
             Some(x) => {if x != end_requested {
                     self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + OFFSET_TO_SPI + SPI::END, &[0x00, end_requested as u8]).unwrap();
-                } else {
-                    log::info!("END bez zmian!"); //TODO do usunięcia
-                }
+                } 
+                // else {
+                    // log::info!("END bez zmian!"); //TODO do usunięcia
+                // }
                 Some(end_requested)
             },
 
