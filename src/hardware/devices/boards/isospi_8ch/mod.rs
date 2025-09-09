@@ -217,11 +217,11 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
             if self.magnetometers_presence[i] && self.settings.ic_settings[i].enable {
                 self.encode_cs(i as u8);
                 self.bus.lock(|bus| {
-                    log::info!("Magnetometer {}: bus lock acquired", i);
+                    // log::info!("Magnetometer {}: bus lock acquired", i);
                     
                     let mut result: (f32, f32, f32);
                     if self.settings.ic_settings[i].continuous_measurement_frequency == ContinuousMeasurementFrequency::CM_Off {
-                        self.telemetry.det_telemetry[i].t = self.magnetometers[i].measure_temperature(&mut bus.ecp5);                        
+                        // self.telemetry.det_telemetry[i].t = self.magnetometers[i].measure_temperature(&mut bus.ecp5);                        
                         result = self.magnetometers[i].measure_m_field(&mut bus.ecp5);
                     }
                     else {

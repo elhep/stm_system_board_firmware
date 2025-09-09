@@ -59,7 +59,7 @@ pub enum PeriodicSet {
 
 #[derive(Serialize, Default, Clone, Copy)]
 pub struct Telemetry {
-    pub t: f32,
+    // pub t: f32,
     pub x: f32,
     pub y: f32,
     pub z: f32,
