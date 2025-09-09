@@ -82,6 +82,7 @@ mod app {
         exti_pin6: ExtIntPin6,
         exti_pin7: ExtIntPin7,
         i2c: hal::i2c::I2c<hal::stm32::I2C1>,
+        gw_rev: u16,
     }
 
     #[init (local = [bus_manager: Option<BusManager<SlotsBus>> = None])]
@@ -101,7 +102,7 @@ mod app {
             env!("CARGO_BIN_NAME"),
             stm_sys_board.net.mac_address,
             option_env!("BROKER")
-                .unwrap_or("192.168.95.169")
+                .unwrap_or("192.168.95.178")
                 // .unwrap_or("172.17.32.126")
                 .parse()
                 .unwrap(),
@@ -120,9 +121,9 @@ mod app {
         *c.local.bus_manager = Some(BusManager::new(stm_sys_board.slots_bus));
         let bus_manager = c.local.bus_manager.as_ref().unwrap();
         let mut bus = bus_manager.acquire_bus();
+        let mut array = [0, 0];
         bus.lock(|bus|{
             bus.ecp5.write_to_ecp5(0, &[0xab, 0xcd]).unwrap();
-            let mut array = [0, 0];
             bus.ecp5.read_from_ecp5(0, &mut array).unwrap();
             log::info!("0: {}", array[0]);
             log::info!("0: {}", array[1]);
@@ -132,7 +133,11 @@ mod app {
             bus.ecp5.read_from_ecp5(161, &mut array).unwrap();
             log::info!("161: {}", array[0]);
             log::info!("161: {}", array[1]);
+            bus.ecp5.read_from_ecp5(162, &mut array).unwrap();
+            log::info!("gw_rev: {}", array[0]);
+            log::info!("gw_rev: {}", array[1]);
 
+        
             
 
 
@@ -277,7 +282,7 @@ mod app {
             //poll7::spawn().unwrap();
 
         }
-
+        let gw_rev = (array[0] as u16) << 8 | (array[1] as u16);
         let shared = Shared {
             network,
             device0,
@@ -301,7 +306,7 @@ mod app {
             exti_pin5: exti_pins.5,
             exti_pin6: exti_pins.6,
             exti_pin7: exti_pins.7,
-            i2c,
+            i2c, gw_rev
         };
 
         settings_update::spawn().unwrap();
@@ -364,7 +369,7 @@ mod app {
         }
     }
 
-    #[task(priority = 1, shared=[network, device0], local=[i2c])]
+    #[task(priority = 1, shared=[network, device0], local=[i2c, gw_rev])]
     fn telemetry_stm(mut c: telemetry_stm::Context) {
         let mut data : [u8; 2] = [0; 2];
         c.local.i2c.write_read(0b1001000 as u8, &[0], &mut data).unwrap();
@@ -375,7 +380,9 @@ mod app {
 
         let cel = (temp as f32) * 0.0625;
 
-        c.shared.network.lock(|net| net.telemetry.publish("sys_board", &cel));
+        c.shared.network.lock(|net| net.telemetry.publish("sys_board_temp", &cel));
+        c.shared.network.lock(|net| net.telemetry.publish("gw_rev", &c.local.gw_rev));
+
 
         telemetry_stm::Monotonic::spawn_after((2 as u64).secs())
             .unwrap();

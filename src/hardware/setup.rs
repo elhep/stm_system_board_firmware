@@ -320,6 +320,8 @@ pub fn setup(
         ccdr.clocks.c_ck().0,
     ));
 
+    delay.delay_ms(2000u32);
+
     let gpioa = device.GPIOA.split(ccdr.peripheral.GPIOA);
     let gpiob = device.GPIOB.split(ccdr.peripheral.GPIOB);
     let gpioc = device.GPIOC.split(ccdr.peripheral.GPIOC);
@@ -426,6 +428,8 @@ pub fn setup(
     let prst = gpiob.pb0.into_pull_up_input();
     create_interrupt_conf(prst, &mut exti, &mut syscfg);
     let mut rst_per = gpioc.pc0.into_push_pull_output();
+    let mut programn = gpioe.pe0.into_push_pull_output();
+    programn.set_high().unwrap();
     rst_per.set_high().unwrap();
     let _pwrbtn = gpiob.pb1.into_pull_up_input();
     let _pwrfail = gpiob.pb5.into_pull_up_input();
