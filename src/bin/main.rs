@@ -369,7 +369,7 @@ mod app {
         }
     }
 
-    #[task(priority = 1, shared=[network, device0], local=[i2c, gw_rev])]
+    #[task(priority = 1, shared=[network], local=[i2c, gw_rev])]
     fn telemetry_stm(mut c: telemetry_stm::Context) {
         let mut data : [u8; 2] = [0; 2];
         c.local.i2c.write_read(0b1001000 as u8, &[0], &mut data).unwrap();
