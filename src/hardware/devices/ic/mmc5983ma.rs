@@ -63,7 +63,6 @@ pub struct Telemetry {
     pub x: f32,
     pub y: f32,
     pub z: f32,
-    pub present: bool,
 }
 
 #[derive(Clone, Copy, Debug, Miniconf)]
@@ -268,7 +267,7 @@ impl Mmc5983ma {
         let y_field: f32 = (((u32::from_be_bytes([0, m_field[2], m_field[3], (m_field[6] & 0b00110000) << 2]) >> 6) as f32) - 131072.) / 16384.;
         let z_field: f32 = (((u32::from_be_bytes([0, m_field[4], m_field[5], (m_field[6] & 0b00001100) << 4]) >> 6) as f32) - 131072.) / 16384.;
         // log::info!("Magnetometer: raw Field: {}, {}, {}, {}, {}, {}, {}", m_field[0], m_field[1], m_field[2], m_field[3], m_field[4], m_field[5], m_field[6]);
-        log::info!("Magnetometer: Field: X {} Y {} Z {}", x_field, y_field, z_field);
+        // log::info!("Magnetometer: Field: X {} Y {} Z {}", x_field, y_field, z_field);
         (x_field, y_field, z_field)
     }
 
@@ -300,7 +299,7 @@ impl Mmc5983ma {
 
         self.read_register(ecp5, TOUT, &mut data);
         let result = -75.0 + (data[0] as f32)*200.0/255.0;
-        log::info!("Magnetometer: Temperature: {} -> {} deg C", data[0], result);
+        // log::info!("Magnetometer: Temperature: {} -> {} deg C", data[0], result);
         result
     }
 

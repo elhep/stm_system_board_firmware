@@ -50,6 +50,7 @@ pub struct IsoSPI_8ch {
     slot: u16,    
     bus: BusReference,    
     magnetometers: [mmc5983ma::Mmc5983ma; sensor_count],
+    magnetometers_presence: [bool; sensor_count],
 }
 
 impl IsoSPI_8ch {
@@ -63,6 +64,7 @@ impl IsoSPI_8ch {
             bus,
             slot,
             magnetometers: [mmc5983ma::Mmc5983ma::new(slot); sensor_count],
+            magnetometers_presence: [false; sensor_count],
         }
     }
 
@@ -178,7 +180,7 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
                 // log::info!("Magnetometer {}: Read product id: {:X}", i, result);
                 
                 if result == 0x30 {
-                    self.telemetry.det_telemetry[i].present = true;
+                    self.magnetometers_presence[i] = true;
                     self.magnetometers[i].remove_bridge_offset(&mut bus.ecp5);
                     // For now, use defaults
                     // self.magnetometers[i].set_x_inhibit(&mut bus.ecp5, false);
@@ -195,7 +197,7 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
         self.settings = new_settings;        
 
         for i in 0..sensor_count {
-            if self.telemetry.det_telemetry[i].present && self.settings.ic_settings[i].enable {
+            if self.magnetometers_presence[i] && self.settings.ic_settings[i].enable {
                 self.encode_cs(i as u8);
                 self.bus.lock(|bus| {
                     if self.settings.ic_settings[i].bridge_offset_calculation {
@@ -212,7 +214,7 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
 
     fn telemetry(&mut self) -> (Telemetry, u16) {
         for i in 0..sensor_count {
-            if self.telemetry.det_telemetry[i].present && self.settings.ic_settings[i].enable {
+            if self.magnetometers_presence[i] && self.settings.ic_settings[i].enable {
                 self.encode_cs(i as u8);
                 self.bus.lock(|bus| {
                     log::info!("Magnetometer {}: bus lock acquired", i);
