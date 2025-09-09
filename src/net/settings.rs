@@ -198,6 +198,6 @@
  ///     - SilpaDefault - work in progress
 
 devices_list!(
-    IsoSPI_8ch,EmptySlot,EmptySlot,EmptySlot,EmptySlot,EmptySlot,EmptySlot,EmptySlot
+    IsoSPI_8ch,EmptySlot,EmptySlot,EmptySlot,TempLogger,EmptySlot,EmptySlot,EmptySlot
 );
 

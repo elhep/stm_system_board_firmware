@@ -34,8 +34,6 @@ use stm32h7xx_hal::{gpio::ExtiPin,
     exti::{Event, ExtiExt},
     device::EXTI,};
 use hal::prelude::_embedded_hal_blocking_i2c_WriteRead;
-use hal::prelude::_stm32h7xx_hal_spi_HalEnabledSpi;
-use hal::prelude::_embedded_hal_blocking_spi_Write;
 //use core::option::Option::{self, Some};
 use stm_sys_board::net::settings::{Settings, Device0Type, Device1Type, Device2Type,
                                              Device3Type, Device4Type, Device5Type,
@@ -84,6 +82,7 @@ mod app {
         exti_pin6: ExtIntPin6,
         exti_pin7: ExtIntPin7,
         i2c: hal::i2c::I2c<hal::stm32::I2C1>,
+        gw_rev: u16,
     }
 
     #[init (local = [bus_manager: Option<BusManager<SlotsBus>> = None])]
@@ -103,7 +102,7 @@ mod app {
             env!("CARGO_BIN_NAME"),
             stm_sys_board.net.mac_address,
             option_env!("BROKER")
-                .unwrap_or("192.168.95.169")
+                .unwrap_or("192.168.95.178")
                 // .unwrap_or("172.17.32.126")
                 .parse()
                 .unwrap(),
@@ -112,12 +111,7 @@ mod app {
 
 
         let mut i2c = stm_sys_board.therm_i2c;
-        let mut spi_mlvds = stm_sys_board.mlvds_dir_spi;
-
-        //
-        spi_mlvds.write(&[0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF]).unwrap();
-        spi_mlvds.end_transaction().unwrap();
-
+        let mut _spi = stm_sys_board.mlvds_dir_spi;
         let mut data : [u8; 2] = [0; 2];
         i2c.write_read(0b1001000 as u8, &[0], &mut data).unwrap();
         let temp : u16 = ( (data[0] as u16) << 4) | ((data[1] as u16) >> 4);
@@ -127,9 +121,9 @@ mod app {
         *c.local.bus_manager = Some(BusManager::new(stm_sys_board.slots_bus));
         let bus_manager = c.local.bus_manager.as_ref().unwrap();
         let mut bus = bus_manager.acquire_bus();
+        let mut array = [0, 0];
         bus.lock(|bus|{
             bus.ecp5.write_to_ecp5(0, &[0xab, 0xcd]).unwrap();
-            let mut array = [0, 0];
             bus.ecp5.read_from_ecp5(0, &mut array).unwrap();
             log::info!("0: {}", array[0]);
             log::info!("0: {}", array[1]);
@@ -139,7 +133,11 @@ mod app {
             bus.ecp5.read_from_ecp5(161, &mut array).unwrap();
             log::info!("161: {}", array[0]);
             log::info!("161: {}", array[1]);
+            bus.ecp5.read_from_ecp5(162, &mut array).unwrap();
+            log::info!("gw_rev: {}", array[0]);
+            log::info!("gw_rev: {}", array[1]);
 
+        
             
 
 
@@ -284,7 +282,7 @@ mod app {
             //poll7::spawn().unwrap();
 
         }
-
+        let gw_rev = (array[0] as u16) << 8 | (array[1] as u16);
         let shared = Shared {
             network,
             device0,
@@ -308,7 +306,7 @@ mod app {
             exti_pin5: exti_pins.5,
             exti_pin6: exti_pins.6,
             exti_pin7: exti_pins.7,
-            i2c,
+            i2c, gw_rev
         };
 
         settings_update::spawn().unwrap();
@@ -371,7 +369,7 @@ mod app {
         }
     }
 
-    #[task(priority = 1, shared=[network], local=[i2c])]
+    #[task(priority = 1, shared=[network], local=[i2c, gw_rev])]
     fn telemetry_stm(mut c: telemetry_stm::Context) {
         let mut data : [u8; 2] = [0; 2];
         c.local.i2c.write_read(0b1001000 as u8, &[0], &mut data).unwrap();
@@ -382,7 +380,9 @@ mod app {
 
         let cel = (temp as f32) * 0.0625;
 
-        c.shared.network.lock(|net| net.telemetry.publish("sys_board", &cel));
+        c.shared.network.lock(|net| net.telemetry.publish("sys_board_temp", &cel));
+        c.shared.network.lock(|net| net.telemetry.publish("gw_rev", &c.local.gw_rev));
+
 
         telemetry_stm::Monotonic::spawn_after((2 as u64).secs())
             .unwrap();
