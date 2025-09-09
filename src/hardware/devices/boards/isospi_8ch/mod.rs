@@ -47,8 +47,8 @@ impl Default for Settings {
 pub struct IsoSPI_8ch {
     pub settings: Settings,
     pub telemetry: Telemetry,
-    slot: u16,    
-    bus: BusReference,    
+    slot: u16,
+    bus: BusReference,
     magnetometers: [mmc5983ma::Mmc5983ma; sensor_count],
     magnetometers_presence: [bool; sensor_count],
 }
@@ -153,7 +153,7 @@ impl IsoSPI_8ch {
             data[1] = data[1] & !(0x07 << 4);
             data[1] = data[1] | (device_num_masked << 4);
             bus.ecp5.write_outputs(self.slot, &mut data);
-            // log::info!("ECP5 slot {} output write: 0x{:X}{:X}", self.slot, data[0], data[1]);            
+            // log::info!("ECP5 slot {} output write: 0x{:X}{:X}", self.slot, data[0], data[1]);
         })
     }
 }
@@ -194,7 +194,7 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
 
     fn settings_update(&mut self, new_settings: Settings) -> () {
         log::info!("Magnetometer: Settigns update");
-        self.settings = new_settings;        
+        self.settings = new_settings;
 
         for i in 0..sensor_count {
             if self.magnetometers_presence[i] && self.settings.ic_settings[i].enable {
@@ -221,7 +221,7 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
                     
                     let mut result: (f32, f32, f32);
                     if self.settings.ic_settings[i].continuous_measurement_frequency == ContinuousMeasurementFrequency::CM_Off {
-                        // self.telemetry.det_telemetry[i].t = self.magnetometers[i].measure_temperature(&mut bus.ecp5);                        
+                        // self.telemetry.det_telemetry[i].t = self.magnetometers[i].measure_temperature(&mut bus.ecp5);
                         result = self.magnetometers[i].measure_m_field(&mut bus.ecp5);
                     }
                     else {

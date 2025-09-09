@@ -200,13 +200,13 @@ impl ECP5 {
         } else {
             address = OFFSET_TO_SLOT * slot_number + OFFSET_TO_SPI + SPI::READABLE;
         }
-        // log::info!("SPI_MACHINE_READ Oczekiwanie na {}", address);
+        //log::info!("SPI_MACHINE_READ Oczekiwanie na {}", address);
         while array[1] != 1 {
             self.read_from_ecp5(address, &mut array).unwrap();
         }
         //log::info!("SPI_MACHINE_READ Jest status - odczytujemy wiadomość");
         self.read_from_ecp5(OFFSET_TO_SLOT * slot_number + OFFSET_TO_SPI + SPI::DATA, data).unwrap();
-        // log::info!("SPI_MACHINE_READ Otrzymane wartości {} {}", data[0], data[1]);
+        //log::info!("SPI_MACHINE_READ Otrzymane wartości {} {}", data[0], data[1]);
     }
 
     pub fn write_spi(&mut self,
@@ -438,7 +438,7 @@ impl ECP5 {
        let mut r_pointer = 0;
        let mut end : Option<bool> = None;
        let mut array : [u8; 2] = [0; 2];
-    //    log::info!("READ SPI START");
+       //log::info!("READ SPI START");
        // signle transfer: 16 bits:
        self.write_to_ecp5(OFFSET_TO_SLOT * slot_number + OFFSET_TO_SPI + SPI::LENGTH, &[0x00, 0x0F]).unwrap();
        //log::info!("READ SPI 2 bytes transfer SET");
