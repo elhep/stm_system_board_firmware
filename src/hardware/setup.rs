@@ -320,6 +320,8 @@ pub fn setup(
         ccdr.clocks.c_ck().0,
     ));
 
+    delay.delay_ms(2000u32);
+
     let gpioa = device.GPIOA.split(ccdr.peripheral.GPIOA);
     let gpiob = device.GPIOB.split(ccdr.peripheral.GPIOB);
     let gpioc = device.GPIOC.split(ccdr.peripheral.GPIOC);
