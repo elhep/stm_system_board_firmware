@@ -28,7 +28,7 @@ impl TelemetryBuffer {
     pub fn finalize(self, settings: Settings, detectors: &mut [max31865::Max31865; 16]) -> Telemetry {
         let mut telemetry = Telemetry::default();
         for (i, det) in self.det.iter().enumerate() {
-            if settings.max_settings[i].active {
+            if detectors[i].active {
                 telemetry.det_telemetry[i].temp = detectors[i].calculate_pt100(det.temp);
                 telemetry.det_telemetry[i].status = det.status;
             }
@@ -97,7 +97,65 @@ impl TempLogger {
             bus.ecp5.write_to_ecp5(OFFSET_TO_SLOT * self.slot_number + OFFSET_TO_SPI + SPI::CLK_PHA, &mut [0x00, 0x01]).unwrap();
             bus.ecp5.write_to_ecp5(OFFSET_TO_SLOT * self.slot_number + OFFSET_TO_SPI + SPI::LSB_FST, &mut [0x00, 0x00]).unwrap();
             bus.ecp5.write_to_ecp5(OFFSET_TO_SLOT * self.slot_number + OFFSET_TO_SPI + SPI::HALF_DUP, &mut [0x00, 0x00]).unwrap();
-        })
+        });
+
+        self.check_status_registers();
+
+        for i in 0..16 {
+            if (self.telemetry.det[i].status == 64) || (self.telemetry.det[i].status == 128) {
+                self.detectors[i].active = false;
+                self.bus.lock(|bus| {
+                    self.detectors[i].set_register(&mut bus.ecp5, max31865::REGS::CONFIGURATION, 0b0000_0000);
+                });
+            }
+        }
+    }
+
+    fn check_status_registers(&mut self) -> () {
+        // Start Fault Status Check
+        for i in 0..16 {
+            if self.detectors[i].active {
+                    self.select_cs(i as u8);
+                    self.bus.lock(|bus| {   
+                        self.detectors[i].update_configuration(&mut bus.ecp5, self.settings.max_settings[i], true, false);
+                    });
+                }
+            }
+
+        // Chceck first active detector if it finished Fault Status Check
+        let mut first_active = 16;
+        for i in 0..16 {
+            if self.detectors[i].active {
+                first_active = i;
+                break;
+            };
+        }
+
+        if first_active != 16 {
+            self.select_cs(first_active as u8);
+            self.bus.lock(|bus| { 
+                    let mut value = [0b100];
+                    while value[0] & 0b0000_0100 != 0 {
+                        // Wait for fault status check to finish
+                        self.detectors[first_active].read_register(&mut bus.ecp5, max31865::REGS::CONFIGURATION, &mut value);
+                    }
+            });
+        }
+
+        
+        // Read all Fault Status registers and clear them
+        for i in 0..16 {
+            if self.detectors[i].active {
+                self.select_cs(i as u8);
+                self.bus.lock(|bus| {
+                    let mut value = [0; 1];
+                    self.detectors[i].read_register(&mut bus.ecp5, max31865::REGS::FALUTSTATUS, &mut value);
+                    self.telemetry.det[i].status = value[0];
+                    let value = 0b1100_0010 | self.settings.max_settings[i].filter as u8;
+                    self.detectors[i].update_configuration(&mut bus.ecp5, self.settings.max_settings[i], false, true);
+                });
+            } 
+        }
     }
 
     fn init_readout(&mut self, mut channel: u8) -> () {
@@ -174,54 +232,11 @@ impl Devices<Settings, Telemetry> for TempLogger {
     }
 
     fn telemetry(&mut self) -> (Telemetry, u16) {
-        // Start Fault Status Check
-        for i in 0..16 {
-            if self.settings.max_settings[i].active {
-                    self.select_cs(i as u8);
-                    self.bus.lock(|bus| {   
-                        self.detectors[i].update_configuration(&mut bus.ecp5, self.settings.max_settings[i], true, false);
-                    });
-                }
-            }
-
-        // Chceck first active detector if it finished Fault Status Check
-        let mut first_active = 16;
-        for i in 0..16 {
-            if self.settings.max_settings[i].active {
-                first_active = i;
-                break;
-            };
-        }
-
-        if first_active != 16 {
-            self.select_cs(first_active as u8);
-            self.bus.lock(|bus| { 
-                    let mut value = [0b100];
-                    while value[0] & 0b0000_0100 != 0 {
-                        // Wait for fault status check to finish
-                        self.detectors[first_active].read_register(&mut bus.ecp5, max31865::REGS::CONFIGURATION, &mut value);
-                    }
-            });
-        }
-
-        
-        // Read all Fault Status registers and clear them
-        for i in 0..16 {
-            if self.settings.max_settings[i].active {
-                self.select_cs(i as u8);
-                self.bus.lock(|bus| {
-                    let mut value = [0; 1];
-                    self.detectors[i].read_register(&mut bus.ecp5, max31865::REGS::FALUTSTATUS, &mut value);
-                    self.telemetry.det[i].status = value[0];
-                    let value = 0b1100_0010 | self.settings.max_settings[i].filter as u8;
-                    self.detectors[i].update_configuration(&mut bus.ecp5, self.settings.max_settings[i], false, true);
-                });
-            } 
-        }
+        self.check_status_registers();
 
         // Read Temperature
         for i in 0..16 {
-            if self.settings.max_settings[i].active {
+            if self.detectors[i].active {
                 // self.select_cs(i as u8); // Read temp function has already select_cs
                 self.telemetry.det[i].temp = self.read_temp(i as u8);
             }

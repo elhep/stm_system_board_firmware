@@ -58,7 +58,6 @@ impl Default for Telemetry {
 
 #[derive(Clone, Copy, Debug, Miniconf, PartialEq)]
 pub struct Settings {
-    pub active : bool,
     pub a   : f32,      //
     pub b       : f32, //
     pub r_nom   : f32, //
@@ -72,7 +71,6 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            active: false,
             a: 3.9083e-3,
             b: -5.775e-7,
             r_nom: 100.0,
@@ -94,6 +92,7 @@ pub struct Max31865 {
     z4: f32,
     rref: f32,
     r_nom: f32,
+    pub active: bool
 }
 
 impl Max31865 {
@@ -108,6 +107,7 @@ impl Max31865 {
             z4: 0.0,
             rref: 0.0,
             r_nom: 0.0,
+            active: true
         }
     }
 
@@ -123,7 +123,7 @@ impl Max31865 {
 
     pub fn update_configuration(&mut self, ecp5: &mut ECP5, settings: Settings, init_fault: bool, reset_fault: bool) {
         let mut config = 0b0000_0000; // Default configuration
-        if settings.active {
+        if self.active {
             config |= 0b1000_0000; // Enable Vbias
         }
         if settings.fault_auto {
