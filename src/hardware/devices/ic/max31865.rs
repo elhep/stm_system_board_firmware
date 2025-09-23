@@ -73,8 +73,8 @@ impl Default for Settings {
         Self {
             a: 3.9083e-3,
             b: -5.775e-7,
-            r_nom: 100.0,
-            r_ref: 390.17, // 3920.0 Ohm or 390.17 Ohm
+            r_nom: 1000.0,
+            r_ref: 3920.0, // 3920.0 Ohm or 390.17 Ohm
             fault_auto: true,
             filter: FILTER::Hz50,
             high_threshold: 0xFFFF, // Default to maximum value
