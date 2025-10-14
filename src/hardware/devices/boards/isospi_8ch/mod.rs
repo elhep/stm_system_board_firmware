@@ -166,6 +166,7 @@ impl Devices<Settings, Telemetry> for IsoSPI_8ch {
         ))  ;
         self.init_interface();
         self.disable_iso_spi_sleep();
+        delay.delay_ms(200 as u32);
 
         self.settings_update(Settings::default());
         
