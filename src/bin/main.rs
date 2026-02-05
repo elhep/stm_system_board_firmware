@@ -102,8 +102,8 @@ mod app {
             env!("CARGO_BIN_NAME"),
             stm_sys_board.net.mac_address,
             option_env!("BROKER")
-                .unwrap_or("linux-services.mikok.pl")
-                // .unwrap_or("172.17.32.126")
+                // .unwrap_or("linux-services.mikok.pl")
+                .unwrap_or("10.99.1.202")
                 .parse()
                 .unwrap(),
             Settings::default(),

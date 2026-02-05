@@ -99,14 +99,18 @@ impl Max31865 {
     pub fn new(
         slot: u16,
     ) -> Self {
+        let a = 3.9083e-3;
+        let b = -5.775e-7;
+        let r_nom = 1000.0;
+        let r_ref = 3920.0; // 3920.0 Ohm or 390.17 Ohm
         Self {
             slot: slot,
-            z1: 0.0,
-            z2: 0.0,
-            z3: 0.0,
-            z4: 0.0,
-            rref: 0.0,
-            r_nom: 0.0,
+            z1: -a,
+            z2: a * a - (4.0 * b),
+            z3: (4.0 * b) / r_nom as f32,
+            z4: 2.0 * b,
+            rref: r_ref,
+            r_nom: r_nom,
             active: true
         }
     }

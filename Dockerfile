@@ -1,5 +1,5 @@
 FROM rust:1.88
-ARG USER_ID=1000
+ARG USER_ID=1002
 
 RUN echo "user:x:$USER_ID:$USER_ID::/home/user:bash" >> /etc/passwd && echo "user:x:$USER_ID:" >> /etc/group && \
     mkdir -p /home/user && chown user:user /home/user && \
