@@ -4,6 +4,7 @@ use crate::hardware::devices::boards::Devices;
 use crate::hardware::ecp5::{OFFSET_TO_SLOT, OFFSET_TO_SPI, SPI};
 use crate::hardware::setup::BusReference;
 use crate::hardware::devices::ic::max31865;
+use embedded_hal::blocking::delay::DelayUs;
 
 
 
@@ -29,8 +30,8 @@ impl TelemetryBuffer {
         let mut telemetry = Telemetry::default();
         for (i, det) in self.det.iter().enumerate() {
             if detectors[i].active {
-                telemetry.det_telemetry[i].temp = detectors[i].calculate_pt100(det.temp);
-                telemetry.det_telemetry[i].status = det.status;
+                telemetry.det_telemetry[i].t = detectors[i].calculate_pt100(det.t);
+                telemetry.det_telemetry[i].s = det.s;
             }
         }
         telemetry
@@ -64,6 +65,7 @@ pub struct TempLogger {
     bus: BusReference,
     slot_number: u16,
     detectors: [max31865::Max31865; 16],
+    delay: asm_delay::AsmDelay
 }
 
 impl TempLogger {
@@ -77,6 +79,9 @@ impl TempLogger {
             bus,
             slot_number,
             detectors: [max31865::Max31865::new(slot_number); 16],
+            delay: asm_delay::AsmDelay::new(asm_delay::bitrate::Hertz(
+                400000000,
+            )) 
         }
     }
 }
@@ -99,10 +104,12 @@ impl TempLogger {
             bus.ecp5.write_to_ecp5(OFFSET_TO_SLOT * self.slot_number + OFFSET_TO_SPI + SPI::HALF_DUP, &mut [0x00, 0x00]).unwrap();
         });
 
+        self.delay.delay_us(5 as u32);
         self.check_status_registers();
 
         for i in 0..16 {
-            if (self.telemetry.det[i].status == 64) || (self.telemetry.det[i].status == 128) {
+            self.delay.delay_us(5 as u32);
+            if (self.telemetry.det[i].s == 64) || (self.telemetry.det[i].s == 128) {
                 self.detectors[i].active = false;
                 self.bus.lock(|bus| {
                     self.detectors[i].set_register(&mut bus.ecp5, max31865::REGS::CONFIGURATION, 0b0000_0000);
@@ -150,7 +157,7 @@ impl TempLogger {
                 self.bus.lock(|bus| {
                     let mut value = [0; 1];
                     self.detectors[i].read_register(&mut bus.ecp5, max31865::REGS::FALUTSTATUS, &mut value);
-                    self.telemetry.det[i].status = value[0];
+                    self.telemetry.det[i].s = value[0];
                     let value = 0b1100_0010 | self.settings.max_settings[i].filter as u8;
                     self.detectors[i].update_configuration(&mut bus.ecp5, self.settings.max_settings[i], false, true);
                 });
@@ -238,7 +245,7 @@ impl Devices<Settings, Telemetry> for TempLogger {
         for i in 0..16 {
             if self.detectors[i].active {
                 // self.select_cs(i as u8); // Read temp function has already select_cs
-                self.telemetry.det[i].temp = self.read_temp(i as u8);
+                self.telemetry.det[i].t = self.read_temp(i as u8);
             }
         }
 

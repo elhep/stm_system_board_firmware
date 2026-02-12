@@ -28,30 +28,30 @@ pub mod FILTER {
 
 #[derive(Copy, Clone)]
 pub struct TempTelemetryBuffer {
-    pub temp: u16,
-    pub status: u8
+    pub t: u16,
+    pub s: u8
 }
 
 impl Default for TempTelemetryBuffer {
     fn default() -> Self {
         Self {
-            temp: 0,
-            status: 0
+            t: 0,
+            s: 0
         }
     }
 }
 
 #[derive(Copy, Clone, Serialize)]
 pub struct Telemetry {
-    pub temp: f32,
-    pub status: u8,
+    pub t: f32,
+    pub s: u8,
 }
 
 impl Default for Telemetry {
     fn default() -> Self {
         Self {
-            temp: 0.0,
-            status: 0
+            t: 0.0,
+            s: 0
         }
     }
 }
